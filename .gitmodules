@@ -34,3 +34,5 @@
 [submodule "gemcrush"]
 	path = gemcrush
 	url = git@github.com:MasterGerhard/gemcrush.git
+[submodule]
+	branch = main
