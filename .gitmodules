@@ -1,0 +1,36 @@
+[submodule "doomMatch3"]
+	path = doomMatch3
+	url = git@github.com:MasterGerhard/doomMatch3.git
+[submodule "candyDoom"]
+	path = candyDoom
+	url = git@github.com:MasterGerhard/candyDoom.git
+[submodule "gumballMachine"]
+	path = gumballMachine
+	url = git@github.com:MasterGerhard/gumballMachine.git
+[submodule "diskGolf"]
+	path = diskGolf
+	url = git@github.com:MasterGerhard/diskGolf.git
+[submodule "americanDinner"]
+	path = americanDinner
+	url = git@github.com:MasterGerhard/americanDinner.git
+[submodule "sweetsAndTreats"]
+	path = sweetsAndTreats
+	url = git@github.com:MasterGerhard/sweetsAndTreats.git
+[submodule "coinToss"]
+	path = coinToss
+	url = git@github.com:MasterGerhard/coinToss.git
+[submodule "lucky7s"]
+	path = lucky7s
+	url = git@github.com:MasterGerhard/lucky7s.git
+[submodule "brickbreaker"]
+	path = brickbreaker
+	url = git@github.com:MasterGerhard/brickbreaker.git
+[submodule "solitare"]
+	path = solitare
+	url = git@github.com:MasterGerhard/solitare.git
+[submodule "loveyBunnysFruitCatch"]
+	path = loveyBunnysFruitCatch
+	url = git@github.com:MasterGerhard/loveyBunnysFruitCatch.git
+[submodule "gemcrush"]
+	path = gemcrush
+	url = git@github.com:MasterGerhard/gemcrush.git
