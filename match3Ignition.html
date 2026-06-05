@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Match 3 Ignition</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    *, html, body { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background:#000;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      overflow:hidden;
+    }
+    #loading {
+      color:#67CC00;
+      font-family:'Courier New',monospace;
+      text-align:center;
+      max-width:600px;
+      padding:10px;
+    }
+    #loading pre {
+      font-size:8px;
+      line-height:10px;
+      margin-bottom:18px;
+      text-shadow:0 0 8px #67CC00;
+    }
+    .st {
+      font-size:15px;
+      letter-spacing:4px;
+      animation:bl 0.85s step-end infinite;
+      text-shadow:0 0 10px #67CC00;
+    }
+    @keyframes bl { 50%{ opacity:0.1; } }
+    #canvas {
+      display:none;
+      cursor:pointer;
+      max-width:100%;
+      max-height:95vh;
+    }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+<pre style="color:#67CC00">
+            -.`                                                                      `.-
+            yccess+/:-.`                                                    `.-:/+ccessy
+            :MMMMMMMMNccess+:-.``                                  `..-:+ccessNMMMMMMMM:
+             cMMMMMMMMMMMMMMMNNccess/:-.`                 ``.-:+ccessNMMMMMMMMMMMMMMMMm
+             +MMMMMMMMMMMMMMMMMMMMMMMMNess+              essNMMMMMMMMMMMMMMMMMMMMMMMMM+
+             `NMMMMMMccessNMMMMMMMMMMMMMMMN`            /MMMMMMMMMMMMMMMNNccessMMMMMMN`
+              cMMMMMMe  `.--/+ccessNMMMMMMMs            cMMMMMMNNccess+:-.`   cMMMMMMs
+              .MMMMMMs           `.-/MMMMMMN`          /MMMMMMd:-.`          `NMMMMMM.
+</pre>
+<div class="st" id="ld">&#9656; INITIALIZING...</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+"use strict";
+
+/* ═══════════════════════════════════════════════════════
+   DOOM MODULE PATTERN  (engine inherited from doom.html)
+   ═══════════════════════════════════════════════════════ */
+const Module = {
+  canvas: document.getElementById('canvas'),
+  setStatus: function(t) {
+    var el = document.getElementById('ld');
+    if (el) el.textContent = '\u25B6 ' + t;
+  }
+};
+
+/* ═══════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════ */
+var W    = 560;
+var H    = 710;
+var COLS = 8;
+var ROWS = 8;
+var CS   = 60;                              // cell size px
+var OX   = Math.round((W - COLS * CS) / 2); // 40  — left margin
+var OY   = 145;                             // top of grid
+
+/* ═══════════════════════════════════════════════════════
+   GEM DATA
+   ═══════════════════════════════════════════════════════ */
+var GD = [
+  { n:'DEMON',  c:'#AA1111', g:'#FF4444', h:'#FF9999', sym:'D' },
+  { n:'HEALTH', c:'#118011', g:'#44FF44', h:'#99FF99', sym:'+' },
+  { n:'BFG',    c:'#112299', g:'#4488FF', h:'#99CCFF', sym:'B' },
+  { n:'SHELL',  c:'#AA6600', g:'#FFAA33', h:'#FFCC99', sym:'O' },
+  { n:'PLASMA', c:'#880088', g:'#FF44FF', h:'#FF99FF', sym:'*' },
+  { n:'ROCKET', c:'#007777', g:'#33FFFF', h:'#99FFFF', sym:'^' }
+];
+
+/* ═══════════════════════════════════════════════════════
+   GAME STATE
+   ═══════════════════════════════════════════════════════ */
+var grid  = null;
+var sel   = null;
+var score = 0;
+var hi    = 0;
+var moves = 30;
+var casc  = 0;
+var state = 'IDLE';  // IDLE | SWAP | ANIM | OVER
+var parts = [];
+var pops  = [];
+var fallD = {};
+var flashD = {};
+var swapD = null;
+var T = 0;
+
+var cv = Module.canvas;
+cv.width  = W;
+cv.height = H;
+var cx = cv.getContext('2d');
+
+/* ═══════════════════════════════════════════════════════
+   GRID  — BUG FIX: build into local 'g', assign after
+   ═══════════════════════════════════════════════════════ */
+function rnd() { return Math.floor(Math.random() * GD.length); }
+
+function mkGrid() {
+  var g = [];
+  for (var r = 0; r < ROWS; r++) {
+    g[r] = [];
+    for (var c = 0; c < COLS; c++) {
+      var t;
+      do {
+        t = rnd();
+      } while (
+        (c >= 2 && g[r][c-1] === t && g[r][c-2] === t) ||
+        (r >= 2 && g[r-1][c] === t && g[r-2][c] === t)
+      );
+      g[r][c] = t;
+    }
+  }
+  grid = g;
+}
+
+function findMatches() {
+  var S = new Set();
+  var r, c, t, l, i;
+  // horizontal
+  for (r = 0; r < ROWS; r++) {
+    for (c = 0; c < COLS - 2; c++) {
+      t = grid[r][c]; if (t < 0) continue;
+      l = 1; while (c + l < COLS && grid[r][c + l] === t) l++;
+      if (l >= 3) for (i = 0; i < l; i++) S.add(r + ',' + (c + i));
+    }
+  }
+  // vertical
+  for (c = 0; c < COLS; c++) {
+    for (r = 0; r < ROWS - 2; r++) {
+      t = grid[r][c]; if (t < 0) continue;
+      l = 1; while (r + l < ROWS && grid[r + l][c] === t) l++;
+      if (l >= 3) for (i = 0; i < l; i++) S.add((r + i) + ',' + c);
+    }
+  }
+  return Array.from(S).map(function(s) { return s.split(',').map(Number); });
+}
+
+function doRemove(m) {
+  var mul = casc + 1;
+  var pts = m.length * 100 * mul;
+  score += pts;
+  if (score > hi) hi = score;
+  for (var i = 0; i < m.length; i++) {
+    var r = m[i][0], c = m[i][1];
+    burst(OX + c * CS + CS / 2, OY + r * CS + CS / 2, grid[r][c]);
+    flashD[r + ',' + c] = { g: grid[r][c], a: 1.0 };
+    grid[r][c] = -1;
+  }
+  mkPop(W / 2, OY + (ROWS * CS) / 2 - 10, '+' + pts, '#FFD700', 24);
+  if (casc > 0) {
+    mkPop(W / 2, OY + (ROWS * CS) / 2 + 32, mul + 'x CASCADE!', '#FF8844', 18);
+  }
+}
+
+function gravity() {
+  for (var c = 0; c < COLS; c++) {
+    for (var r = ROWS - 1; r >= 0; r--) {
+      if (grid[r][c] >= 0) continue;
+      for (var rr = r - 1; rr >= 0; rr--) {
+        if (grid[rr][c] >= 0) {
+          fallD[r + ',' + c] = { y: (rr - r) * CS };
+          grid[r][c] = grid[rr][c];
+          grid[rr][c] = -1;
+          break;
+        }
+      }
+    }
+  }
+}
+
+function fillTop() {
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      if (grid[r][c] < 0) {
+        grid[r][c] = rnd();
+        fallD[r + ',' + c] = { y: -(r + 1) * CS - 10 };
+      }
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   PARTICLES & POPUPS
+   ═══════════════════════════════════════════════════════ */
+function burst(x, y, gt) {
+  var g = GD[gt];
+  for (var i = 0; i < 20; i++) {
+    var a = Math.random() * Math.PI * 2;
+    var v = 1.5 + Math.random() * 4.5;
+    parts.push({
+      x: x, y: y,
+      vx: Math.cos(a) * v,
+      vy: Math.sin(a) * v - 0.8,
+      r:  1.5 + Math.random() * 3.5,
+      a:  1.0,
+      dc: 0.022 + Math.random() * 0.02,
+      col: (i % 2) ? g.g : g.h
+    });
+  }
+}
+
+function mkPop(x, y, text, col, size) {
+  pops.push({ x: x, y: y, text: text, col: col, size: size, a: 1.0, vy: -1.3 });
+}
+
+/* ═══════════════════════════════════════════════════════
+   ASYNC GAME FLOW
+   ═══════════════════════════════════════════════════════ */
+function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+async function process() {
+  state = 'ANIM';
+  casc  = 0;
+  while (true) {
+    var m = findMatches();
+    if (!m.length) break;
+    doRemove(m);
+    await sleep(370);
+    gravity();
+    fillTop();
+    await sleep(560);
+    casc++;
+  }
+  state = (moves > 0) ? 'IDLE' : 'OVER';
+}
+
+async function trySwap(r1, c1, r2, c2) {
+  if (state !== 'IDLE') return;
+  state = 'SWAP';
+  var A = grid[r1][c1], B = grid[r2][c2];
+
+  swapD = { r1: r1, c1: c1, r2: r2, c2: c2, A: A, B: B, p: 0 };
+  await animTo(swapD, 200);
+  grid[r1][c1] = B; grid[r2][c2] = A;
+  swapD = null;
+
+  if (!findMatches().length) {
+    // Swap back
+    swapD = { r1: r2, c1: c2, r2: r1, c2: c1, A: A, B: B, p: 0 };
+    await animTo(swapD, 200);
+    grid[r1][c1] = A; grid[r2][c2] = B;
+    swapD = null;
+    state = 'IDLE';
+  } else {
+    moves--;
+    await process();
+  }
+}
+
+function animTo(obj, ms) {
+  return new Promise(function(res) {
+    var t0 = performance.now();
+    function step(now) {
+      obj.p = Math.min(1, (now - t0) / ms);
+      if (obj.p < 1) requestAnimationFrame(step);
+      else res();
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   DRAWING
+   ═══════════════════════════════════════════════════════ */
+function lerp(a, b, t) { return a + (b - a) * t; }
+function ease(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
+
+function gemShape(gcx, gcy, type, s) {
+  var i, a, rr;
+  cx.beginPath();
+  switch (type) {
+    case 0: // circle
+      cx.arc(gcx, gcy, s, 0, Math.PI * 2);
+      break;
+    case 1: // rounded square
+      rr = s * 0.28;
+      cx.moveTo(gcx - s + rr, gcy - s);
+      cx.lineTo(gcx + s - rr, gcy - s);
+      cx.arcTo(gcx + s, gcy - s, gcx + s, gcy - s + rr, rr);
+      cx.lineTo(gcx + s, gcy + s - rr);
+      cx.arcTo(gcx + s, gcy + s, gcx + s - rr, gcy + s, rr);
+      cx.lineTo(gcx - s + rr, gcy + s);
+      cx.arcTo(gcx - s, gcy + s, gcx - s, gcy + s - rr, rr);
+      cx.lineTo(gcx - s, gcy - s + rr);
+      cx.arcTo(gcx - s, gcy - s, gcx - s + rr, gcy - s, rr);
+      cx.closePath();
+      break;
+    case 2: // hexagon
+      for (i = 0; i < 6; i++) {
+        a = (i / 6) * Math.PI * 2 - Math.PI / 6;
+        if (i) cx.lineTo(gcx + Math.cos(a) * s, gcy + Math.sin(a) * s);
+        else   cx.moveTo(gcx + Math.cos(a) * s, gcy + Math.sin(a) * s);
+      }
+      cx.closePath();
+      break;
+    case 3: // octagon
+      for (i = 0; i < 8; i++) {
+        a = (i / 8) * Math.PI * 2;
+        if (i) cx.lineTo(gcx + Math.cos(a) * s, gcy + Math.sin(a) * s);
+        else   cx.moveTo(gcx + Math.cos(a) * s, gcy + Math.sin(a) * s);
+      }
+      cx.closePath();
+      break;
+    case 4: // star
+      for (i = 0; i < 10; i++) {
+        a  = (i / 10) * Math.PI * 2 - Math.PI / 2;
+        rr = (i % 2 === 0) ? s : s * 0.42;
+        if (i) cx.lineTo(gcx + Math.cos(a) * rr, gcy + Math.sin(a) * rr);
+        else   cx.moveTo(gcx + Math.cos(a) * rr, gcy + Math.sin(a) * rr);
+      }
+      cx.closePath();
+      break;
+    case 5: // diamond
+      cx.moveTo(gcx,          gcy - s);
+      cx.lineTo(gcx + s * 0.62, gcy);
+      cx.lineTo(gcx,          gcy + s);
+      cx.lineTo(gcx - s * 0.62, gcy);
+      cx.closePath();
+      break;
+  }
+}
+
+function drawGem(x, y, type, alpha, pulse, dy) {
+  if (alpha === undefined) alpha = 1;
+  if (pulse === undefined) pulse = false;
+  if (dy    === undefined) dy    = 0;
+  if (type < 0 || alpha <= 0) return;
+  var g  = GD[type];
+  var pw = pulse ? Math.sin(T * 0.13) * 3 : 0;
+  var s  = CS * 0.39 + pw;
+  var gcx = x + CS / 2;
+  var gcy = y + CS / 2 + dy;
+
+  cx.save();
+  cx.globalAlpha = alpha;
+  cx.shadowBlur  = pulse ? 24 + pw * 3 : 11;
+  cx.shadowColor = g.g;
+
+  // Outer shape
+  cx.fillStyle   = g.c;
+  cx.strokeStyle = g.g;
+  cx.lineWidth   = pulse ? 2.5 : 1.5;
+  gemShape(gcx, gcy, type, s);
+  cx.fill();
+  cx.stroke();
+
+  // Inner highlight
+  cx.shadowBlur  = 0;
+  cx.fillStyle   = g.h;
+  cx.globalAlpha = alpha * 0.28;
+  gemShape(gcx, gcy, type, s * 0.46);
+  cx.fill();
+
+  // Symbol letter
+  cx.shadowBlur   = 5;
+  cx.shadowColor  = '#fff';
+  cx.fillStyle    = '#fff';
+  cx.globalAlpha  = alpha * 0.92;
+  cx.font         = 'bold ' + Math.round(s * 0.82) + 'px Courier New';
+  cx.textAlign    = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillText(g.sym, gcx, gcy + 1);
+  cx.restore();
+}
+
+/* ─── Main render ─── */
+function render() {
+  var bw = COLS * CS;   // 480
+
+  /* Background + scanlines */
+  cx.fillStyle = '#050505';
+  cx.fillRect(0, 0, W, H);
+  cx.fillStyle = 'rgba(0,0,0,0.17)';
+  for (var sy = 0; sy < H; sy += 4) cx.fillRect(0, sy, W, 2);
+
+  /* Header */
+  cx.shadowBlur  = 18; cx.shadowColor = '#67CC00';
+  cx.fillStyle   = '#67CC00';
+  cx.font        = 'bold 26px Courier New';
+  cx.textAlign   = 'center';
+  cx.fillText('[ Match 3 Ignition ]', W / 2, 33);
+
+  cx.shadowBlur = 6;
+  cx.fillStyle  = '#336600';
+  cx.font       = '13px Courier New';
+  cx.fillText('-- RIP  AND  TEAR --', W / 2, 53);
+
+  /* Score */
+  cx.shadowBlur  = 14; cx.shadowColor = '#FFD700';
+  cx.fillStyle   = '#FFD700';
+  cx.font        = 'bold 23px Courier New';
+  cx.fillText(String(score).padStart(9, '0'), W / 2, 84);
+
+  /* Moves bar */
+  cx.shadowBlur = 0;
+  var pct = moves / 30;
+  cx.fillStyle = '#0d0d0d'; cx.fillRect(OX, 99, bw, 10);
+  cx.fillStyle = pct > 0.4 ? '#22BB22' : pct > 0.2 ? '#BBAA00' : '#BB2222';
+  cx.fillRect(OX, 99, bw * pct, 10);
+  cx.strokeStyle = '#222'; cx.lineWidth = 1; cx.strokeRect(OX, 99, bw, 10);
+  cx.fillStyle  = '#449900'; cx.font = '12px Courier New';
+  cx.textAlign  = 'left';
+  cx.fillText('MOVES: ' + moves, OX, 94);
+  if (casc > 0) {
+    cx.fillStyle = '#FF9933'; cx.textAlign = 'right';
+    cx.fillText((casc + 1) + 'x COMBO', OX + bw, 94);
+  }
+  cx.shadowBlur = 0;
+
+  /* Grid cells */
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      cx.fillStyle = ((r + c) % 2) ? '#111' : '#0e0e0e';
+      cx.fillRect(OX + c * CS, OY + r * CS, CS, CS);
+    }
+  }
+
+  /* Selection highlight */
+  if (sel && state === 'IDLE') {
+    var p = (Math.sin(T * 0.15) + 1) / 2;
+    cx.strokeStyle = 'rgba(103,204,0,' + (0.38 + p * 0.62) + ')';
+    cx.lineWidth = 2; cx.shadowBlur = 12; cx.shadowColor = '#67CC00';
+    cx.strokeRect(OX + sel.c * CS + 2, OY + sel.r * CS + 2, CS - 4, CS - 4);
+    cx.shadowBlur = 0;
+  }
+
+  /* Gems — skip cells involved in swap animation */
+  var skip = {};
+  if (swapD) {
+    skip[swapD.r1 + ',' + swapD.c1] = true;
+    skip[swapD.r2 + ',' + swapD.c2] = true;
+  }
+
+  for (var r = 0; r < ROWS; r++) {
+    for (var c = 0; c < COLS; c++) {
+      var k = r + ',' + c;
+      if (skip[k]) continue;
+      var t = grid[r][c];
+      if (t < 0) continue;
+      var fdy    = fallD[k] ? fallD[k].y : 0;
+      var isSel  = sel && sel.r === r && sel.c === c && state === 'IDLE';
+      drawGem(OX + c * CS, OY + r * CS, t, 1, isSel, fdy);
+    }
+  }
+
+  /* Flash (matched gems fading out) */
+  var fkeys = Object.keys(flashD);
+  for (var fi = 0; fi < fkeys.length; fi++) {
+    var fk = fkeys[fi];
+    var fa = flashD[fk];
+    var fp = fk.split(',').map(Number);
+    drawGem(OX + fp[1] * CS, OY + fp[0] * CS, fa.g, fa.a);
+    cx.fillStyle = 'rgba(255,255,255,' + (fa.a * 0.55) + ')';
+    cx.fillRect(OX + fp[1] * CS, OY + fp[0] * CS, CS, CS);
+  }
+
+  /* Swap animation */
+  if (swapD) {
+    var et = ease(swapD.p);
+    var x1 = OX + swapD.c1 * CS, y1 = OY + swapD.r1 * CS;
+    var x2 = OX + swapD.c2 * CS, y2 = OY + swapD.r2 * CS;
+    drawGem(lerp(x1, x2, et), lerp(y1, y2, et), swapD.A);
+    drawGem(lerp(x2, x1, et), lerp(y2, y1, et), swapD.B);
+  }
+
+  /* Grid border glow */
+  cx.shadowBlur  = 10; cx.shadowColor = '#67CC00';
+  cx.strokeStyle = '#67CC00'; cx.lineWidth = 2;
+  cx.strokeRect(OX - 1, OY - 1, COLS * CS + 2, ROWS * CS + 2);
+  cx.shadowBlur  = 0;
+
+  /* Particles */
+  cx.save();
+  for (var pi = 0; pi < parts.length; pi++) {
+    var pp = parts[pi];
+    cx.globalAlpha = pp.a;
+    cx.fillStyle   = pp.col;
+    cx.beginPath(); cx.arc(pp.x, pp.y, pp.r, 0, Math.PI * 2); cx.fill();
+  }
+  cx.restore();
+
+  /* Score popups */
+  cx.save();
+  for (var qi = 0; qi < pops.length; qi++) {
+    var qp = pops[qi];
+    cx.globalAlpha  = qp.a;
+    cx.fillStyle    = qp.col;
+    cx.shadowBlur   = 12; cx.shadowColor = qp.col;
+    cx.font         = 'bold ' + qp.size + 'px Courier New';
+    cx.textAlign    = 'center';
+    cx.fillText(qp.text, qp.x, qp.y);
+  }
+  cx.restore();
+  cx.shadowBlur = 0;
+
+  /* Footer */
+  var fy = OY + ROWS * CS + 5;  // 625
+  cx.fillStyle = '#080808'; cx.fillRect(0, fy - 1, W, H - fy + 1);
+  cx.strokeStyle = '#1c1c1c'; cx.lineWidth = 1;
+  cx.beginPath(); cx.moveTo(0, fy); cx.lineTo(W, fy); cx.stroke();
+
+  /* Gem colour legend */
+  var lx0 = W / 2 - (GD.length - 1) * 46 / 2;
+  for (var gi = 0; gi < GD.length; gi++) {
+    var lx = lx0 + gi * 46, ly = fy + 22;
+    cx.shadowBlur = 7; cx.shadowColor = GD[gi].g;
+    cx.fillStyle  = GD[gi].c;
+    cx.beginPath(); cx.arc(lx, ly, 7, 0, Math.PI * 2); cx.fill();
+    cx.strokeStyle = GD[gi].g; cx.lineWidth = 1; cx.stroke();
+    cx.shadowBlur = 0;
+    cx.fillStyle  = '#2e5e10'; cx.font = '9px Courier New';
+    cx.textAlign  = 'center';
+    cx.fillText(GD[gi].n, lx, ly + 14);
+  }
+
+  cx.fillStyle = '#1e4008'; cx.font = '11px Courier New';
+  cx.textAlign = 'left';
+  cx.fillText('DEMONS SLAIN: ' + Math.floor(score / 100), OX, fy + 56);
+  cx.fillText('BEST: ' + String(hi).padStart(9, '0'), OX, fy + 70);
+  cx.textAlign = 'right';
+  cx.fillText('SELECT & SWAP ADJACENT GEMS', OX + bw, fy + 56);
+  cx.fillText('MATCH 3 OR MORE TO SCORE', OX + bw, fy + 70);
+
+  /* GAME OVER overlay */
+  if (state === 'OVER') {
+    cx.fillStyle = 'rgba(0,0,0,0.92)'; cx.fillRect(0, 0, W, H);
+    var cy = H / 2 - 30;
+    cx.shadowBlur  = 40; cx.shadowColor = '#880000';
+    cx.fillStyle   = '#CC0000';
+    cx.font        = 'bold 62px Courier New';
+    cx.textAlign   = 'center';
+    cx.fillText('YOU  DIED', W / 2, cy - 50);
+    cx.shadowBlur  = 10; cx.shadowColor = '#67CC00';
+    cx.fillStyle   = '#67CC00'; cx.font = 'bold 21px Courier New';
+    cx.fillText('SCORE:  ' + String(score).padStart(9, '0'), W / 2, cy + 14);
+    cx.fillStyle   = '#FFD700'; cx.shadowColor = '#FFD700';
+    cx.font        = '17px Courier New';
+    cx.fillText('BEST:   ' + String(hi).padStart(9, '0'), W / 2, cy + 44);
+    cx.fillStyle   = '#338811'; cx.shadowColor = '#338811';
+    cx.font        = '14px Courier New';
+    if (T % 60 < 44) cx.fillText('> CLICK OR PRESS ANY KEY TO RESTART', W / 2, cy + 88);
+    cx.shadowBlur = 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   GAME LOOP  (requestAnimationFrame — same as doom.html)
+   ═══════════════════════════════════════════════════════ */
+function loop() {
+  T++;
+
+  var k, kk;
+
+  /* Ease falling gems toward 0 */
+  for (k in fallD) {
+    fallD[k].y *= 0.70;
+    if (Math.abs(fallD[k].y) < 0.45) delete fallD[k];
+  }
+
+  /* Fade matched gems */
+  for (k in flashD) {
+    flashD[k].a -= 0.088;
+    if (flashD[k].a <= 0) delete flashD[k];
+  }
+
+  /* Update particles */
+  var alive = [];
+  for (var pi = 0; pi < parts.length; pi++) {
+    var p = parts[pi];
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.115; p.vx *= 0.98;
+    p.a  -= p.dc;  p.r  *= 0.97;
+    if (p.a > 0) alive.push(p);
+  }
+  parts = alive;
+
+  /* Update score popups */
+  var qalive = [];
+  for (var qi = 0; qi < pops.length; qi++) {
+    var qp = pops[qi];
+    qp.y += qp.vy; qp.a -= 0.017;
+    if (qp.a > 0) qalive.push(qp);
+  }
+  pops = qalive;
+
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* ═══════════════════════════════════════════════════════
+   INPUT
+   ═══════════════════════════════════════════════════════ */
+function handleClick(mx, my) {
+  if (state === 'OVER') { newGame(); return; }
+  if (state !== 'IDLE') return;
+
+  var c = Math.floor((mx - OX) / CS);
+  var r = Math.floor((my - OY) / CS);
+  if (r < 0 || r >= ROWS || c < 0 || c >= COLS) { sel = null; return; }
+
+  if (!sel) {
+    sel = { r: r, c: c };
+  } else if (sel.r === r && sel.c === c) {
+    sel = null;
+  } else if (Math.abs(r - sel.r) + Math.abs(c - sel.c) === 1) {
+    var prev = sel; sel = null;
+    trySwap(prev.r, prev.c, r, c);
+  } else {
+    sel = { r: r, c: c };
+  }
+}
+
+cv.addEventListener('click', function(e) {
+  var rc = cv.getBoundingClientRect();
+  handleClick(
+    (e.clientX - rc.left) * W / rc.width,
+    (e.clientY - rc.top)  * H / rc.height
+  );
+});
+
+cv.addEventListener('touchend', function(e) {
+  e.preventDefault();
+  var t = e.changedTouches[0];
+  var rc = cv.getBoundingClientRect();
+  handleClick(
+    (t.clientX - rc.left) * W / rc.width,
+    (t.clientY - rc.top)  * H / rc.height
+  );
+}, { passive: false });
+
+document.addEventListener('keydown', function() {
+  if (state === 'OVER') newGame();
+});
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════ */
+function newGame() {
+  mkGrid();
+  score = 0; moves = 30; casc = 0;
+  state = 'IDLE'; sel = null;
+  parts = []; pops = [];
+  fallD = {}; flashD = {}; swapD = null;
+}
+
+/* Boot sequence matching doom.html's loading pattern */
+var BOOT_MSGS = [
+  'LOADING WEAPON ASSETS',
+  'SPAWNING DEMONS',
+  'BUILDING GRID MATRIX',
+  'PRESS FIRE TO PLAY'
+];
+var bi = 0;
+var biv = setInterval(function() {
+  Module.setStatus(BOOT_MSGS[++bi] || 'ALL SYSTEMS GO');
+  if (bi >= BOOT_MSGS.length - 1) clearInterval(biv);
+}, 320);
+
+setTimeout(function() {
+  document.getElementById('loading').style.display = 'none';
+  cv.style.display = 'block';
+  newGame();
+  requestAnimationFrame(loop);
+}, 1400);
+</script>
+</body>
+</html>

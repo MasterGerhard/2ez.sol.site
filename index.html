@@ -536,7 +536,7 @@
 
     GAMES.forEach((game, i) => {
       const a = document.createElement('a');
-      a.href = `./${game.folder}/${game.folder}.html`;
+      a.href = `./${game.folder}.html`;
       a.className = 'app-item';
       a.style.animationDelay = `${i * 38}ms`;
       a.setAttribute('aria-label', game.title);

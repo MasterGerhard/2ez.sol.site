@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d1a;font-family:'Segoe UI',sans-serif;display:flex;justify-content:center;min-height:100vh;padding:8px}
+#app{width:100%;max-width:480px;margin:0 auto;padding:0 4px}
+h1{text-align:center;font-size:20px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#e8d5ff;margin-bottom:2px}
+.subtitle{text-align:center;font-size:10px;letter-spacing:2px;color:#7060a0;margin-bottom:12px}
+.hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:6px 8px;background:#16122a;border-radius:12px;border:1px solid #2a2050;gap:4px}
+.hud-item{text-align:center;min-width:0}
+.hud-label{font-size:8px;letter-spacing:1px;color:#7060a0;text-transform:uppercase}
+.hud-value{font-size:18px;font-weight:700;color:#e8d5ff;line-height:1.2}
+#reset-btn{background:#2a1a5a;color:#c0a0ff;border:1px solid #4a2a9a;padding:5px 10px;border-radius:8px;cursor:pointer;font-size:10px;letter-spacing:1px;font-weight:600;transition:all .15s;white-space:nowrap}
+#reset-btn:hover{background:#3a2070}
+.level-bar-wrap{margin-bottom:8px;background:#16122a;border-radius:10px;padding:8px 12px;border:1px solid #2a2050}
+.level-info{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.level-badge{font-size:11px;font-weight:700;letter-spacing:1px;color:#ffe060}
+.level-goal{font-size:10px;color:#7060a0}
+.progress-track{height:8px;background:#0d0a1e;border-radius:6px;overflow:hidden}
+.progress-fill{height:100%;border-radius:6px;transition:width .4s ease}
+.move-pips{display:flex;gap:4px;margin-top:5px;justify-content:flex-end}
+.pip{width:10px;height:10px;border-radius:50%;background:#2a2050;transition:background .3s}
+.pip.used{background:#c060ff}
+#board-wrap{position:relative;background:#100e20;border-radius:14px;padding:6px;border:1px solid #2a2050;box-shadow:0 0 40px #3020607a;max-width:100%;overflow:hidden}
+#board{display:grid;gap:4px}
+.cell{border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .12s,box-shadow .12s;position:relative;user-select:none;aspect-ratio:1}
+.cell:hover{transform:scale(1.09);z-index:2}
+.cell.selected{box-shadow:0 0 0 3px #fff,0 0 14px #fff8;transform:scale(1.12);z-index:3}
+.cell.match{animation:matchpop .32s ease forwards}
+.cell.falling{animation:fall .2s ease}
+@keyframes matchpop{0%{transform:scale(1.2);opacity:1}100%{transform:scale(0);opacity:0}}
+@keyframes fall{0%{transform:translateY(-36px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes dropin{0%{transform:translateY(-20px);opacity:0}100%{transform:translateY(0);opacity:1}}
+#msg{text-align:center;min-height:20px;font-size:12px;letter-spacing:1px;color:#c0a0ff;margin-top:6px;transition:opacity .3s}
+.overlay{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:100}
+.panel{background:#16122a;border:1px solid #4a2a9a;border-radius:20px;padding:32px 40px;text-align:center;max-width:320px;width:90%}
+.panel h2{font-size:26px;font-weight:700;color:#e8d5ff;margin-bottom:8px}
+.panel .big-gem{font-size:52px;margin-bottom:10px;display:block}
+.panel p{color:#a080d0;font-size:14px;line-height:1.6;margin-bottom:18px}
+.panel button{background:linear-gradient(135deg,#4a2a8a,#7040c0);color:#fff;border:none;padding:10px 28px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;width:100%}
+.panel button:hover{background:linear-gradient(135deg,#5a38a8,#8050d8)}
+.panel .score-big{font-size:36px;font-weight:700;color:#ffe060;margin:8px 0}
+.level-dots{display:flex;gap:8px;justify-content:center;margin:12px 0}
+.ldot{width:14px;height:14px;border-radius:50%;background:#2a2050;border:2px solid #4a2a9a;transition:all .3s}
+.ldot.done{background:#ffe060;border-color:#ffe060}
+.ldot.active{background:#c060ff;border-color:#c060ff;box-shadow:0 0 8px #c060ff}
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>✦ Gemcrush ✦</h1>
+  <div class="subtitle">five levels · match three jewels</div>
+  <div class="hud">
+    <div class="hud-item"><div class="hud-label">Score</div><div class="hud-value" id="score">0</div></div>
+    <div class="hud-item"><div class="hud-label">Moves</div><div class="hud-value" id="moves-left">30</div></div>
+    <button id="reset-btn" onclick="resetGame()">↺ Restart</button>
+    <div class="hud-item"><div class="hud-label">Combos</div><div class="hud-value" id="combos">0</div></div>
+    <div class="hud-item"><div class="hud-label">Level</div><div class="hud-value" id="level-num">1</div></div>
+  </div>
+  <div class="level-bar-wrap">
+    <div class="level-info">
+      <span class="level-badge" id="level-name">Level 1 — Amethyst Cave</span>
+      <span class="level-goal" id="level-goal-txt">Goal: 500 pts</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%;background:#8040ff"></div></div>
+    <div class="move-pips" id="move-pips"></div>
+  </div>
+  <div id="board-wrap">
+    <div id="board"></div>
+    <div id="msg"></div>
+  </div>
+</div>
+
+<div id="overlay" class="overlay" style="display:none">
+  <div class="panel" id="panel">
+    <span class="big-gem" id="panel-gem">💎</span>
+    <h2 id="panel-title">Level Complete!</h2>
+    <div class="level-dots" id="level-dots"></div>
+    <p id="panel-msg">You crushed it!</p>
+    <div class="score-big" id="panel-score"></div>
+    <button id="panel-btn" onclick="panelAction()"></button>
+  </div>
+</div>
+
+<script>
+const COLS=8,ROWS=8;
+const GEMS=['💎','🔮','🌟','🔥','💚','🌸','⚡','🍊'];
+const GEM_COLORS=['#1a6aff','#8040ff','#ffe040','#ff4020','#20c040','#ff60a0','#80ffff','#ff9020'];
+
+const LEVELS=[
+  {name:"Amethyst Cave", goal:500,  moves:30, gem:'💎', color:'#8040ff', gems:5, desc:"Warm up in the crystal caves."},
+  {name:"Ember Forge",   goal:1200, moves:28, gem:'🔥', color:'#ff5020', gems:6, desc:"The forge heats up. Match faster!"},
+  {name:"Storm Peak",    goal:2200, moves:26, gem:'⚡', color:'#80ffff', gems:7, desc:"Lightning strikes — chain combos!"},
+  {name:"Bloom Garden",  goal:3500, moves:24, gem:'🌸', color:'#ff60a0', gems:7, desc:"Beauty hides sharp thorns. Stay focused."},
+  {name:"Cosmos Vault",  goal:5200, moves:22, gem:'🌟', color:'#ffe040', gems:8, desc:"The final vault. Prove your mastery!"},
+];
+
+let board=[],selected=null,score=0,movesLeft=0,combos=0,locked=false,currentLevel=0,panelMode='';
+
+function lvl(){return LEVELS[currentLevel];}
+function el(id){return document.getElementById(id);}
+
+function initBoard(){
+  const gemCount=lvl().gems;
+  board=[];
+  for(let r=0;r<ROWS;r++){board[r]=[];for(let c=0;c<COLS;c++)board[r][c]=Math.floor(Math.random()*gemCount);}
+  resolveAll();
+}
+
+function causesMatch(b,r,c,g){
+  if(c>=2&&b[r][c-1]===g&&b[r][c-2]===g)return true;
+  if(r>=2&&b[r-1]&&b[r-1][c]===g&&b[r-2]&&b[r-2][c]===g)return true;
+  return false;
+}
+
+function cellFontSize(){
+  const boardWrap=el('board-wrap');
+  const availW=boardWrap.clientWidth - 12;
+  const sz=Math.floor((availW - (COLS-1)*4) / COLS);
+  return Math.floor(sz*0.44)+'px';
+}
+
+function buildDOM(){
+  // Full rebuild — only on init/resize, NOT during match processing
+  const bd=el('board');
+  bd.style.gridTemplateColumns=`repeat(${COLS},1fr)`;
+  bd.innerHTML='';
+  const fs=cellFontSize();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const cell=document.createElement('div');
+    cell.className='cell';cell.id=`c${r}_${c}`;
+    const g=board[r][c];
+    cell.style.background=`${GEM_COLORS[g]}22`;
+    cell.style.border=`1px solid ${GEM_COLORS[g]}55`;
+    cell.textContent=GEMS[g];
+    cell.style.fontSize=fs;
+    cell.onclick=()=>onCellClick(r,c);
+    bd.appendChild(cell);
+  }
+  updateHUD();
+  buildPips();
+}
+
+function refreshCells(){
+  // Patch cells in-place — no innerHTML wipe, no scroll jump
+  const fs=cellFontSize();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const cell=el(`c${r}_${c}`);
+    if(!cell)continue;
+    const g=board[r][c];
+    cell.className='cell dropin';
+    cell.style.background=`${GEM_COLORS[g]}22`;
+    cell.style.border=`1px solid ${GEM_COLORS[g]}55`;
+    cell.textContent=GEMS[g];
+    cell.style.fontSize=fs;
+    cell.onclick=()=>onCellClick(r,c);
+  }
+  updateHUD();
+  buildPips();
+}
+
+// Rebuild board on resize/orientation change so sizing stays correct
+let _resizeTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(()=>{ if(board.length) buildDOM(); }, 150);
+});
+
+function buildPips(){
+  const pip=el('move-pips');pip.innerHTML='';
+  const total=lvl().moves;
+  const show=Math.min(total,22);
+  const used=total-movesLeft;
+  for(let i=0;i<show;i++){
+    const d=document.createElement('div');
+    d.className='pip'+(i<used?' used':'');
+    pip.appendChild(d);
+  }
+}
+
+function updateHUD(){
+  const L=lvl();
+  el('score').textContent=score;
+  el('moves-left').textContent=movesLeft;
+  el('combos').textContent=combos;
+  el('level-num').textContent=currentLevel+1;
+  el('level-name').textContent=`Level ${currentLevel+1} — ${L.name}`;
+  el('level-goal-txt').textContent=`Goal: ${L.goal.toLocaleString()} pts`;
+  const pct=Math.min(score/L.goal*100,100);
+  el('progress-fill').style.width=pct+'%';
+  el('progress-fill').style.background=L.color;
+  buildPips();
+}
+
+function onCellClick(r,c){
+  if(locked||el('overlay').style.display!=='none')return;
+  if(selected===null){
+    selected={r,c};
+    el(`c${r}_${c}`).classList.add('selected');
+    showMsg('Select adjacent gem to swap');
+  } else {
+    const{r:sr,c:sc}=selected;
+    el(`c${sr}_${sc}`).classList.remove('selected');
+    if(sr===r&&sc===c){selected=null;showMsg('');return;}
+    const adj=(Math.abs(sr-r)+Math.abs(sc-c))===1;
+    if(!adj){selected={r,c};el(`c${r}_${c}`).classList.add('selected');showMsg('Select adjacent gem to swap');return;}
+    selected=null;showMsg('');
+    trySwap(sr,sc,r,c);
+  }
+}
+
+function swap(r1,c1,r2,c2){[board[r1][c1],board[r2][c2]]=[board[r2][c2],board[r1][c1]];}
+
+function trySwap(r1,c1,r2,c2){
+  swap(r1,c1,r2,c2);
+  const m=findMatches();
+  if(m.length===0){swap(r1,c1,r2,c2);showMsg('No match — try again');return;}
+  movesLeft--;combos=0;locked=true;
+  processMatches(m);
+}
+
+function findMatches(){
+  const matched=new Set();
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS-2;c++){
+    if(board[r][c]===board[r][c+1]&&board[r][c]===board[r][c+2]){
+      let len=3;while(c+len<COLS&&board[r][c+len]===board[r][c])len++;
+      for(let k=0;k<len;k++)matched.add(`${r},${c+k}`);
+    }
+  }
+  for(let c=0;c<COLS;c++)for(let r=0;r<ROWS-2;r++){
+    if(board[r][c]===board[r+1][c]&&board[r][c]===board[r+2][c]){
+      let len=3;while(r+len<ROWS&&board[r+len][c]===board[r][c])len++;
+      for(let k=0;k<len;k++)matched.add(`${r+k},${c}`);
+    }
+  }
+  return[...matched].map(s=>{const[r,c]=s.split(',');return{r:+r,c:+c};});
+}
+
+function processMatches(m){
+  combos++;
+  const pts=m.length*(combos>1?combos*2:1)*10;
+  score+=pts;
+  m.forEach(({r,c})=>{const cell=el(`c${r}_${c}`);if(cell)cell.classList.add('match');});
+  if(combos>1)showMsg(`${combos}x Combo! +${pts}`);
+  setTimeout(()=>{
+    m.forEach(({r,c})=>{board[r][c]=-1;});
+    dropGems();
+    refreshCells();
+    const newM=findMatches();
+    if(newM.length>0){setTimeout(()=>processMatches(newM),300);}
+    else{
+      locked=false;
+      updateHUD();
+      if(score>=lvl().goal){setTimeout(()=>showLevelComplete(),300);return;}
+      if(movesLeft<=0){setTimeout(()=>showFail(),300);return;}
+      checkDeadlock();
+    }
+  },340);
+}
+
+function dropGems(){
+  const gemCount=lvl().gems;
+  for(let c=0;c<COLS;c++){
+    // Collect all non-empty gems from bottom to top
+    const gems=[];
+    for(let r=ROWS-1;r>=0;r--)if(board[r][c]!==-1)gems.push(board[r][c]);
+    // Fill column bottom-up: existing gems first, then new random ones on top
+    for(let r=ROWS-1;r>=0;r--){
+      board[r][c]=gems.length>0?gems.shift():Math.floor(Math.random()*gemCount);
+    }
+  }
+}
+
+function hasMoves(){
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(c+1<COLS){swap(r,c,r,c+1);if(findMatches().length>0){swap(r,c,r,c+1);return true;}swap(r,c,r,c+1);}
+    if(r+1<ROWS){swap(r,c,r+1,c);if(findMatches().length>0){swap(r,c,r+1,c);return true;}swap(r,c,r+1,c);}
+  }
+  return false;
+}
+
+function checkDeadlock(){
+  if(!hasMoves()){
+    showMsg('No moves! Reshuffling...');locked=true;
+    setTimeout(()=>{resolveAll(false);refreshCells();locked=false;showMsg('');},900);
+  }
+}
+
+function resolveAll(){
+  let m=findMatches();
+  while(m.length>0){
+    m.forEach(({r,c})=>{board[r][c]=-1;});
+    dropGems();m=findMatches();
+  }
+  let tries=0;
+  while(!hasMoves()&&tries<100){
+    const gc=lvl().gems;
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)board[r][c]=Math.floor(Math.random()*gc);
+    let m2=findMatches();
+    while(m2.length>0){m2.forEach(({r,c})=>{board[r][c]=-1;});dropGems();m2=findMatches();}
+    tries++;
+  }
+}
+
+function buildLevelDots(panelEl){
+  const dots=panelEl.querySelector('#level-dots')||document.createElement('div');
+  dots.id='level-dots';dots.className='level-dots';dots.innerHTML='';
+  for(let i=0;i<LEVELS.length;i++){
+    const d=document.createElement('div');
+    d.className='ldot'+(i<currentLevel?' done':i===currentLevel?' active':'');
+    dots.appendChild(d);
+  }
+}
+
+function showPanel(){el('overlay').style.display='flex';buildLevelDots(el('panel'));}
+function hidePanel(){el('overlay').style.display='none';}
+
+function showLevelComplete(){
+  const L=lvl();
+  el('panel-gem').textContent=L.gem;
+  if(currentLevel===LEVELS.length-1){
+    el('panel-title').textContent='You Win! 🏆';
+    el('panel-msg').textContent='You conquered all five realms. A true Gem Master!';
+    el('panel-score').textContent=score.toLocaleString()+' pts';
+    el('panel-btn').textContent='Play Again';
+    panelMode='win';
+  } else {
+    el('panel-title').textContent=`Level ${currentLevel+1} Complete!`;
+    el('panel-msg').textContent=LEVELS[currentLevel+1].desc;
+    el('panel-score').textContent=score.toLocaleString()+' pts';
+    el('panel-btn').textContent=`Enter Level ${currentLevel+2} →`;
+    panelMode='next';
+  }
+  showPanel();
+}
+
+function showFail(){
+  const L=lvl();
+  el('panel-gem').textContent='💔';
+  el('panel-title').textContent='Out of Moves!';
+  el('panel-msg').textContent=`You needed ${(L.goal-score).toLocaleString()} more pts. Try again!`;
+  el('panel-score').textContent=score.toLocaleString()+' pts';
+  el('panel-btn').textContent='↺ Retry Level';
+  panelMode='retry';
+  showPanel();
+}
+
+function panelAction(){
+  hidePanel();
+  if(panelMode==='next'){currentLevel++;startLevel();}
+  else if(panelMode==='retry'){startLevel();}
+  else{resetGame();}
+}
+
+function startLevel(){
+  movesLeft=lvl().moves;combos=0;score=0;selected=null;locked=false;
+  el('score').textContent=0;
+  showMsg('');
+  initBoard();buildDOM();
+}
+
+function resetGame(){
+  currentLevel=0;score=0;movesLeft=lvl().moves;combos=0;selected=null;locked=false;
+  hidePanel();showMsg('');
+  initBoard();buildDOM();
+}
+
+function showMsg(t){el('msg').textContent=t;}
+
+resetGame();
+</script>
+</body>
+</html>

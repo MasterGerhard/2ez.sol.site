@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Coin Toss</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&display=swap');
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+html, body {
+  height:100%; width:100%;
+  overflow:hidden;
+  background:#0a1008;
+}
+
+body {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height:100dvh;
+  font-family:'DM Mono', monospace;
+}
+
+body::before {
+  content:'';
+  position:fixed; inset:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% 0%,  rgba(38,88,18,.6) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 45% at 50% 100%, rgba(22,60,12,.5) 0%, transparent 60%);
+}
+
+.card {
+  position:relative; z-index:1;
+  width: min(440px, calc(100vw - 16px));
+  max-height: min(820px, calc(100dvh - 16px));
+  display:flex; flex-direction:column;
+  background:rgba(8,18,8,.9);
+  border-radius:20px;
+  border:1px solid rgba(160,120,10,.25);
+  box-shadow: 0 0 60px rgba(30,90,10,.2), inset 0 1px 0 rgba(255,255,255,.04);
+  padding:16px 18px 16px;
+  overflow:hidden;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 31px,rgba(255,255,255,.018) 31px,rgba(255,255,255,.018) 32px),
+    repeating-linear-gradient(90deg,transparent,transparent 31px,rgba(255,255,255,.018) 31px,rgba(255,255,255,.018) 32px);
+}
+
+.title-block { text-align:center; flex-shrink:0; margin-bottom:10px; }
+.title-main {
+  font-family:'Playfair Display', serif;
+  font-size: clamp(26px, 7vw, 38px);
+  font-weight:900; color:#d4a830;
+  letter-spacing:.04em; line-height:1;
+}
+.title-sub {
+  font-size: clamp(9px, 2vw, 11px);
+  letter-spacing:.16em; text-transform:uppercase;
+  color:#4e6e4e; margin-top:4px;
+}
+
+.balance-block { text-align:center; flex-shrink:0; margin-bottom:10px; }
+.balance-lbl {
+  font-size: clamp(9px, 2vw, 11px);
+  letter-spacing:.16em; text-transform:uppercase; color:#4e6e4e; margin-bottom:3px;
+}
+.balance-num {
+  font-family:'Playfair Display', serif;
+  font-size: clamp(52px, 15vw, 72px);
+  font-weight:900; color:#d4a830;
+  line-height:1; letter-spacing:-.02em;
+}
+.balance-num.bump { animation:bump .35s ease; }
+@keyframes bump { 0%{transform:scale(1)} 40%{transform:scale(1.08)} 100%{transform:scale(1)} }
+.balance-num.wf { color:#4cde8a; }
+.balance-num.lf { color:#e05555; }
+
+.prog-row { display:flex; align-items:center; gap:10px; flex-shrink:0; margin-bottom:14px; }
+.prog-track { flex:1; height:3px; background:#172217; border-radius:2px; overflow:hidden; }
+.prog-fill { height:100%; background:#d4a830; border-radius:2px; transition:width .6s ease; }
+.prog-goal { font-size:clamp(9px,2vw,11px); color:#4e6e4e; white-space:nowrap; }
+
+.coin-area {
+  flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  min-height:0;
+}
+.coin-stage {
+  perspective:800px;
+  width: clamp(120px, 32vw, 180px);
+  height: clamp(120px, 32vw, 180px);
+}
+.coin {
+  width:100%; height:100%;
+  position:relative; transform-style:preserve-3d; border-radius:50%;
+}
+.coin.fh { animation:goH .72s cubic-bezier(.4,0,.2,1) forwards; }
+.coin.ft { animation:goT .72s cubic-bezier(.4,0,.2,1) forwards; }
+@keyframes goH { 0%{transform:rotateY(0) scale(1)} 45%{transform:rotateY(810deg) scale(.85)} 100%{transform:rotateY(1800deg) scale(1)} }
+@keyframes goT { 0%{transform:rotateY(0) scale(1)} 45%{transform:rotateY(810deg) scale(.85)} 100%{transform:rotateY(1980deg) scale(1)} }
+.face { position:absolute; inset:0; border-radius:50%; backface-visibility:hidden; -webkit-backface-visibility:hidden; display:flex; align-items:center; justify-content:center; }
+.face-h { transform:rotateY(0deg); }
+.face-t { transform:rotateY(180deg); }
+.coin-svg { width:100%; height:100%; border-radius:50%; }
+
+.result-msg {
+  height:20px; margin-top:8px;
+  font-size:clamp(11px,2.5vw,13px); letter-spacing:.08em; text-transform:uppercase;
+  color:transparent; transition:color .25s; text-align:center;
+}
+.result-msg.win { color:#4cde8a; }
+.result-msg.lose { color:#e05555; }
+
+/* ── BET BLOCK ── */
+.bet-block { flex-shrink:0; margin-bottom:10px; margin-top:10px; }
+.bet-lbl {
+  font-size:clamp(9px,2vw,11px); letter-spacing:.16em; text-transform:uppercase;
+  color:#4e6e4e; margin-bottom:7px; text-align:center;
+}
+
+.tiers { display:flex; gap:5px; margin-bottom:6px; }
+.tier {
+  flex:1; padding:9px 2px;
+  background:#0d1c0d; border:1px solid #1e301e; border-radius:9px;
+  color:#7a9a6a; font-family:'DM Mono',monospace;
+  font-size:clamp(10px,2.5vw,12px);
+  cursor:pointer; text-align:center;
+  transition:background .12s, border-color .12s, color .12s; user-select:none;
+}
+.tier.active { background:#182e18; border-color:#d4a830; color:#d4a830; }
+.tier:disabled { opacity:.3; cursor:not-allowed; }
+.tier:not(:disabled):active { transform:scale(.93); }
+
+.pct-tiers { display:flex; gap:5px; }
+.pct-tier {
+  flex:1; padding:7px 2px;
+  background:#0d1a18; border:1px solid #1a2e2a; border-radius:9px;
+  color:#6a9a8a; font-family:'DM Mono',monospace;
+  cursor:pointer; text-align:center;
+  transition:background .12s, border-color .12s, color .12s; user-select:none;
+  display:flex; flex-direction:column; align-items:center; gap:1px;
+}
+.pct-tier .pct-label {
+  font-size:clamp(10px,2.5vw,12px); font-weight:500; line-height:1;
+}
+.pct-tier .pct-val {
+  font-size:clamp(8px,1.8vw,10px); color:#4a7a6a; line-height:1;
+}
+.pct-tier.active {
+  background:#152e28; border-color:#50c8a0; color:#50c8a0;
+}
+.pct-tier.active .pct-val { color:#38a882; }
+.pct-tier:disabled { opacity:.3; cursor:not-allowed; }
+.pct-tier:not(:disabled):active { transform:scale(.93); }
+
+.bet-divider {
+  display:flex; align-items:center; gap:8px; margin-bottom:6px;
+}
+.bet-divider-line { flex:1; height:1px; background:#1a2e1a; }
+.bet-divider-label {
+  font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:#3a5a3a;
+}
+
+/* ── FLIP BTN ── */
+.flip-btn {
+  flex-shrink:0; width:100%; padding:clamp(14px,3.5dvh,18px);
+  border:none; border-radius:13px; cursor:pointer;
+  font-family:'DM Mono',monospace;
+  font-size:clamp(13px,3.5vw,15px);
+  letter-spacing:.14em; text-transform:uppercase; font-weight:500;
+  background:#d4a830; color:#1a0e00;
+  position:relative; overflow:hidden;
+  transition:transform .08s, opacity .2s; user-select:none;
+}
+.flip-btn::after { content:''; position:absolute; inset:0; background:rgba(255,255,255,0); transition:background .15s; }
+.flip-btn:hover::after { background:rgba(255,255,255,.1); }
+.flip-btn:active { transform:scale(.97); }
+.flip-btn:disabled { opacity:.35; cursor:not-allowed; transform:none; }
+
+/* ── OVERLAY ── */
+.overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(2,6,2,.94); z-index:100;
+  align-items:center; justify-content:center; padding:24px;
+}
+.overlay.show { display:flex; }
+.over-box {
+  background:#08100a; border:1px solid rgba(160,120,10,.3);
+  border-radius:20px; padding:32px 24px; text-align:center;
+  width:100%; max-width:360px;
+}
+.ov-amt {
+  font-family:'Playfair Display',serif;
+  font-size:clamp(44px,12vw,58px); font-weight:900; line-height:1;
+  margin:8px 0 4px;
+}
+.ov-amt.win { color:#4cde8a; }
+.ov-amt.lose { color:#e05555; }
+.ov-lbl { font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:#4e6e4e; margin-bottom:3px; }
+.ov-sub { font-size:13px; color:#4e6e4e; margin-bottom:24px; line-height:1.6; }
+.again {
+  width:100%; padding:16px; border:none; border-radius:12px; cursor:pointer;
+  font-family:'DM Mono',monospace; font-size:14px; letter-spacing:.1em;
+  text-transform:uppercase; background:#d4a830; color:#1a0e00; font-weight:500;
+}
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+
+  <div class="title-block">
+    <div class="title-main">Coin Toss</div>
+    <div class="title-sub">Double or nothing &mdash; reach $100 to win</div>
+  </div>
+
+  <div class="balance-block">
+    <div class="balance-lbl">balance</div>
+    <div class="balance-num" id="bal">$20.00</div>
+  </div>
+
+  <div class="prog-row">
+    <div class="prog-track"><div class="prog-fill" id="prog" style="width:20%"></div></div>
+    <div class="prog-goal">$100</div>
+  </div>
+
+  <div class="coin-area">
+    <div class="coin-stage">
+      <div class="coin" id="coin">
+        <div class="face face-h">
+          <svg class="coin-svg" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="80" cy="80" r="78" fill="#b88a10" stroke="#7a5e00" stroke-width="2"/>
+            <circle cx="80" cy="80" r="70" fill="#d4a830" stroke="#b08018" stroke-width="1.5"/>
+            <circle cx="80" cy="80" r="63" fill="none" stroke="#c09820" stroke-width="1"/>
+            <circle cx="80" cy="80" r="57" fill="none" stroke="#a87810" stroke-width=".5" stroke-dasharray="3 4"/>
+            <text x="80" y="74" text-anchor="middle" font-family="'Playfair Display',serif" font-size="30" font-weight="900" fill="#6a4000">H</text>
+            <text x="80" y="97" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#8a6010" letter-spacing="3">HEADS</text>
+            <g stroke="#8a6818" stroke-width=".8" opacity=".5">
+              <line x1="80" y1="14" x2="80" y2="21"/><line x1="80" y1="139" x2="80" y2="146"/>
+              <line x1="14" y1="80" x2="21" y2="80"/><line x1="139" y1="80" x2="146" y2="80"/>
+              <line x1="30" y1="30" x2="35" y2="35"/><line x1="125" y1="125" x2="130" y2="130"/>
+              <line x1="130" y1="30" x2="125" y2="35"/><line x1="35" y1="125" x2="30" y2="130"/>
+            </g>
+            <ellipse cx="58" cy="56" rx="9" ry="6" fill="rgba(255,230,100,.16)" transform="rotate(-30,58,56)"/>
+          </svg>
+        </div>
+        <div class="face face-t">
+          <svg class="coin-svg" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="80" cy="80" r="78" fill="#6a6a6a" stroke="#484848" stroke-width="2"/>
+            <circle cx="80" cy="80" r="70" fill="#8e8e8e" stroke="#626262" stroke-width="1.5"/>
+            <circle cx="80" cy="80" r="63" fill="none" stroke="#747474" stroke-width="1"/>
+            <circle cx="80" cy="80" r="57" fill="none" stroke="#606060" stroke-width=".5" stroke-dasharray="3 4"/>
+            <text x="80" y="74" text-anchor="middle" font-family="'Playfair Display',serif" font-size="30" font-weight="900" fill="#343434">T</text>
+            <text x="80" y="97" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9" fill="#525252" letter-spacing="3">TAILS</text>
+            <g stroke="#525252" stroke-width=".8" opacity=".5">
+              <line x1="80" y1="14" x2="80" y2="21"/><line x1="80" y1="139" x2="80" y2="146"/>
+              <line x1="14" y1="80" x2="21" y2="80"/><line x1="139" y1="80" x2="146" y2="80"/>
+              <line x1="30" y1="30" x2="35" y2="35"/><line x1="125" y1="125" x2="130" y2="130"/>
+              <line x1="130" y1="30" x2="125" y2="35"/><line x1="35" y1="125" x2="30" y2="130"/>
+            </g>
+            <ellipse cx="58" cy="56" rx="9" ry="6" fill="rgba(255,255,255,.12)" transform="rotate(-30,58,56)"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="result-msg" id="rmsg"></div>
+  </div>
+
+  <div class="bet-block">
+    <div class="bet-lbl">bet amount</div>
+
+    <div class="tiers" id="tiers">
+      <button class="tier" data-v="0.20">$0.20</button>
+      <button class="tier" data-v="0.50">$0.50</button>
+      <button class="tier active" data-v="1.00">$1.00</button>
+      <button class="tier" data-v="2.00">$2.00</button>
+      <button class="tier" data-v="5.00">$5.00</button>
+    </div>
+
+    <div class="bet-divider">
+      <div class="bet-divider-line"></div>
+      <div class="bet-divider-label">% of balance</div>
+      <div class="bet-divider-line"></div>
+    </div>
+
+    <div class="pct-tiers" id="pct-tiers">
+      <button class="pct-tier" data-pct="0.25"><span class="pct-label">25%</span><span class="pct-val" id="pv0">—</span></button>
+      <button class="pct-tier" data-pct="0.33"><span class="pct-label">33%</span><span class="pct-val" id="pv1">—</span></button>
+      <button class="pct-tier" data-pct="0.50"><span class="pct-label">50%</span><span class="pct-val" id="pv2">—</span></button>
+      <button class="pct-tier" data-pct="0.66"><span class="pct-label">66%</span><span class="pct-val" id="pv3">—</span></button>
+      <button class="pct-tier" data-pct="0.75"><span class="pct-label">75%</span><span class="pct-val" id="pv4">—</span></button>
+      <button class="pct-tier" data-pct="1.00"><span class="pct-label">100%</span><span class="pct-val" id="pv5">—</span></button>
+    </div>
+  </div>
+
+  <button class="flip-btn" id="flip-btn">Flip the coin</button>
+
+</div>
+
+<div class="overlay" id="over">
+  <div class="over-box">
+    <div class="ov-lbl" id="ov-lbl">final balance</div>
+    <div class="ov-amt" id="ov-amt">$0.00</div>
+    <div class="ov-sub" id="ov-sub">You ran out of money.</div>
+    <button class="again" onclick="reset()">Play again</button>
+  </div>
+</div>
+
+<script>
+const FIXED=[.2,.5,1,2,5];
+const PCTS=[.25,.33,.50,.66,.75,1.00];
+const START=10,GOAL=100,MIN=.2;
+let bal=START, bet=1, betIsPct=false, activePct=null, going=false;
+
+const $=id=>document.getElementById(id);
+const fmt=n=>'$'+n.toFixed(2);
+const round2=n=>Math.round(n*100)/100;
+
+function pctBet(pct){ return Math.max(0.01, round2(bal * pct)); }
+
+function updatePctLabels(){
+  PCTS.forEach((p,i)=>{ $('pv'+i).textContent = fmt(pctBet(p)); });
+}
+
+function ui(){
+  $('bal').textContent=fmt(bal);
+  $('prog').style.width=Math.min(100,bal/GOAL*100)+'%';
+  updatePctLabels();
+  if(betIsPct && activePct!==null){ bet = pctBet(activePct); }
+  document.querySelectorAll('.tier').forEach(b=>{
+    const v=parseFloat(b.dataset.v);
+    b.disabled=v>bal; b.style.opacity=v>bal?'.3':'1';
+  });
+  if(!betIsPct && bet>bal){
+    const ok=FIXED.filter(t=>t<=bal);
+    if(ok.length) selFixed(ok[0]);
+    else selPct(PCTS[0]);
+  }
+}
+
+function clearAllActive(){
+  document.querySelectorAll('.tier').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.pct-tier').forEach(b=>b.classList.remove('active'));
+}
+
+function selFixed(v){
+  bet=v; betIsPct=false; activePct=null;
+  clearAllActive();
+  document.querySelectorAll('.tier').forEach(b=>{
+    b.classList.toggle('active', parseFloat(b.dataset.v)===v);
+  });
+}
+
+function selPct(pct){
+  activePct=pct; betIsPct=true;
+  bet=pctBet(pct);
+  clearAllActive();
+  document.querySelectorAll('.pct-tier').forEach(b=>{
+    b.classList.toggle('active', parseFloat(b.dataset.pct)===pct);
+  });
+}
+
+document.querySelectorAll('.tier').forEach(b=>
+  b.addEventListener('click',()=>{ if(!going) selFixed(parseFloat(b.dataset.v)); })
+);
+document.querySelectorAll('.pct-tier').forEach(b=>
+  b.addEventListener('click',()=>{ if(!going) selPct(parseFloat(b.dataset.pct)); })
+);
+
+$('flip-btn').addEventListener('click',()=>{ if(going||bet>bal||bet<=0) return; doFlip(); });
+
+function flash(cls){
+  const b=$('bal'); b.classList.remove('wf','lf','bump'); void b.offsetWidth;
+  b.classList.add(cls,'bump'); setTimeout(()=>b.classList.remove(cls,'bump'),600);
+}
+
+function doFlip(){
+  const thisBet=round2(bet);
+  going=true; $('flip-btn').disabled=true;
+  const rm=$('rmsg'); rm.className='result-msg'; rm.textContent='';
+  const isWin=Math.random()<.5;
+  const coin=$('coin'); coin.className='coin'; void coin.offsetWidth;
+  coin.className='coin '+(isWin?'fh':'ft');
+  setTimeout(()=>{
+    if(isWin){
+      bal=round2(bal+thisBet);
+      rm.className='result-msg win'; rm.textContent='+'+fmt(thisBet)+' — you win!'; flash('wf');
+    } else {
+      bal=round2(bal-thisBet);
+      rm.className='result-msg lose'; rm.textContent='-'+fmt(thisBet)+' — you lose'; flash('lf');
+    }
+    going=false; ui();
+    if(bal>=GOAL) gameOver(true);
+    else if(bal<MIN) gameOver(false);
+    else $('flip-btn').disabled=false;
+  },750);
+}
+
+function gameOver(won){
+  $('ov-amt').className='ov-amt '+(won?'win':'lose');
+  $('ov-amt').textContent=fmt(bal);
+  $('ov-lbl').textContent=won?'you reached the goal!':'game over';
+  $('ov-sub').textContent=won?'You beat the house and hit $100!':bal<=0?'You ran out of money. Better luck next time.':'Not enough for the minimum bet.';
+  $('over').classList.add('show');
+}
+
+function reset(){
+  bal=START; bet=1; betIsPct=false; activePct=null; going=false;
+  $('coin').className='coin';
+  const rm=$('rmsg'); rm.className='result-msg'; rm.textContent='';
+  clearAllActive();
+  document.querySelectorAll('.tier').forEach(b=>{
+    b.classList.toggle('active', parseFloat(b.dataset.v)===1);
+  });
+  $('over').classList.remove('show'); $('flip-btn').disabled=false; ui();
+}
+
+selFixed(1.00);
+ui();
+</script>
+</body>
+</html>

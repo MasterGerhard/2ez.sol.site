@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>American Dinner Slots</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --red:        #e8291c;
+    --red-light:  #ff5544;
+    --yellow:     #ffd700;
+    --yellow-lt:  #ffe94d;
+    --cream:      #fff8e7;
+    --chrome:     #d0d8e8;
+    --teal:       #00c9b1;
+    --border-col: #8b3a00;
+    --bg-dark:    #0f0a04;
+    --cabinet1:   #1e1208;
+    --cabinet2:   #140c04;
+    --screen-bg:  #0a0604;
+  }
+
+  html, body { height: 100%; width: 100%; overflow: hidden; }
+
+  body {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100dvh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background-color: var(--bg-dark);
+    /* checkerboard diner floor texture */
+    background-image:
+      repeating-conic-gradient(
+        rgba(255,215,0,0.06) 0% 25%,
+        transparent 0% 50%
+      ),
+      /* diagonal chrome lines */
+      repeating-linear-gradient(
+        -60deg,
+        transparent,
+        transparent 22px,
+        rgba(208,216,232,0.04) 22px,
+        rgba(208,216,232,0.04) 23px
+      );
+    background-size: 32px 32px, auto;
+  }
+
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(232,41,28,0.10) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 30%, rgba(255,215,0,0.08) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 85%, rgba(0,201,177,0.06) 0%, transparent 40%);
+  }
+
+  /* ── CABINET ── */
+  .cabinet {
+    position: relative; z-index: 1;
+    width: min(440px, calc(100vw - 16px));
+    max-height: min(820px, calc(100dvh - 16px));
+    display: flex; flex-direction: column;
+    background: linear-gradient(180deg, var(--cabinet1) 0%, var(--cabinet2) 100%);
+    border-radius: 20px;
+    /* chrome-style border with red accent */
+    border: 2px solid #7a3800;
+    box-shadow:
+      0 0 0 1px rgba(208,216,232,0.15),
+      0 0 50px rgba(232,41,28,0.2),
+      0 0 100px rgba(255,215,0,0.08),
+      inset 0 1px 0 rgba(255,255,255,0.07);
+    padding: 12px 16px 14px;
+    overflow: hidden;
+  }
+
+  /* red-and-chrome top stripe */
+  .cabinet::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 7px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--red) 0px, var(--red) 16px,
+      var(--chrome) 16px, var(--chrome) 22px,
+      var(--yellow) 22px, var(--yellow) 38px,
+      var(--chrome) 38px, var(--chrome) 44px
+    );
+    border-radius: 20px 20px 0 0;
+    opacity: 0.8;
+  }
+
+  /* ── HEADER ── */
+  .marquee { text-align: center; flex-shrink: 0; margin-bottom: 4px; margin-top: 4px; }
+
+  .marquee-title {
+    font-family: impact, 'Arial Narrow', sans-serif;
+    font-size: clamp(28px, 7.5vw, 44px);
+    letter-spacing: 4px; line-height: 1;
+    background: linear-gradient(180deg, var(--yellow-lt) 0%, var(--yellow) 45%, var(--red) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 14px rgba(255,180,0,0.5));
+  }
+
+  .marquee-sub {
+    font-size: clamp(7px, 1.8vw, 9px); letter-spacing: 3px;
+    color: var(--teal); text-transform: uppercase; margin-top: 1px;
+  }
+
+  /* ── LIGHTS ── */
+  .lights-row { display: flex; justify-content: center; gap: 7px; margin: 5px 0; flex-shrink: 0; }
+  .bulb {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--red); box-shadow: 0 0 5px var(--red);
+    animation: blink 1.0s infinite alternate;
+  }
+  .bulb:nth-child(even) { background: var(--yellow); box-shadow: 0 0 5px var(--yellow); animation-delay:.5s; }
+  .bulb:nth-child(3n)   { background: var(--teal);   box-shadow: 0 0 5px var(--teal);   animation-delay:.25s; }
+  @keyframes blink { to { opacity: 0.2; } }
+
+  /* ── SCREEN FRAME ── */
+  .screen-frame {
+    background: var(--screen-bg);
+    border-radius: 12px;
+    border: 2px solid #3d1a00;
+    box-shadow: inset 0 0 24px rgba(0,0,0,0.85), 0 0 16px rgba(232,41,28,0.18);
+    padding: 10px; margin-bottom: 8px; flex-shrink: 0;
+  }
+
+  /* ── REELS ── */
+  .reels-container {
+    display: flex; gap: 6px;
+    height: clamp(100px, 18dvh, 148px);
+    background: #060300;
+    border-radius: 8px; border: 2px solid #2a1000;
+    overflow: hidden; position: relative;
+  }
+  .reel-wrapper { flex: 1; overflow: hidden; position: relative; border-right: 1px solid #2a1000; }
+  .reel-wrapper:last-child { border-right: none; }
+  .reel { display: flex; flex-direction: column; }
+  .reel.spinning { animation: spin-tick 0.1s steps(1) infinite; }
+  @keyframes spin-tick {
+    0%   { transform: translateY(0); }    25%  { transform: translateY(-44px); }
+    50%  { transform: translateY(-88px); } 75% { transform: translateY(-132px); }
+    100% { transform: translateY(0); }
+  }
+  .symbol {
+    width: 100%; height: clamp(33px, 6dvh, 50px);
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(22px, 4.5dvh, 32px); flex-shrink: 0; user-select: none;
+  }
+  .win-line, .reel-highlight {
+    position: absolute; top: 50%; left: 0; right: 0;
+    height: clamp(37px, 6.5dvh, 54px); transform: translateY(-50%); pointer-events: none;
+  }
+  .win-line { border-top: 2px solid rgba(255,215,0,0.5); border-bottom: 2px solid rgba(255,215,0,0.5); z-index: 5; }
+  .reel-highlight { background: rgba(255,215,0,0.05); z-index: 4; }
+
+  /* ── PAYTABLE ── */
+  .paytable {
+    display: flex; gap: 5px; margin-top: 8px;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    -webkit-mask: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+    mask: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+    padding: 0 4px 2px;
+  }
+  .paytable::-webkit-scrollbar { display: none; }
+  .pay-row {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: rgba(255,255,255,0.04); border-radius: 7px; padding: 5px 8px;
+    border: 1px solid rgba(232,41,28,0.2); flex-shrink: 0; min-width: 52px;
+  }
+  .pay-symbols { font-size: clamp(12px, 3vw, 16px); white-space: nowrap; }
+  .pay-mult { font-size: clamp(9px, 2vw, 11px); color: var(--yellow); font-weight: 700; white-space: nowrap; }
+
+  /* ── INFO BAR ── */
+  .info-bar { display: flex; gap: 8px; margin-bottom: 8px; flex-shrink: 0; }
+  .info-card {
+    flex: 1; background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(232,41,28,0.2); border-radius: 9px; padding: 6px 8px; text-align: center;
+  }
+  .info-label { font-size: clamp(7px, 1.8vw, 9px); letter-spacing: 2px; text-transform: uppercase; color: #664422; margin-bottom: 2px; }
+  .info-value { font-size: clamp(14px, 4vw, 18px); font-weight: 700; font-variant-numeric: tabular-nums; color: #fff; font-family: 'Courier New', Courier, monospace; }
+  .info-value.balance { color: var(--teal); }
+  .info-value.win     { color: var(--yellow); }
+
+  /* ── CONTROLS ── */
+  .controls { display: flex; flex-direction: column; gap: 7px; flex-shrink: 0; }
+  .bet-section { display: flex; align-items: center; gap: 7px; }
+  .bet-label { font-size: clamp(7px, 1.8vw, 9px); letter-spacing: 2px; text-transform: uppercase; color: #664422; white-space: nowrap; }
+  .bet-buttons { display: flex; gap: 4px; flex: 1; }
+  .bet-btn {
+    flex: 1; padding: 6px 2px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(232,41,28,0.25);
+    border-radius: 6px; color: #cc9966; font-size: clamp(9px, 2.2vw, 11px);
+    cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .bet-btn:hover  { background: rgba(232,41,28,0.12); border-color: var(--red-light); color: var(--yellow-lt); }
+  .bet-btn.active { background: rgba(232,41,28,0.18); border-color: var(--yellow); color: var(--yellow); box-shadow: 0 0 8px rgba(255,215,0,0.25); }
+
+  .spin-btn {
+    width: 100%; padding: clamp(10px, 2.5dvh, 15px);
+    background: linear-gradient(180deg, var(--red-light) 0%, var(--red) 100%);
+    border: none; border-radius: 11px;
+    font-family: impact, 'Arial Narrow', sans-serif;
+    font-size: clamp(22px, 5.5vw, 30px); letter-spacing: 4px; color: var(--yellow-lt);
+    cursor: pointer; transition: all 0.15s;
+    box-shadow: 0 4px 18px rgba(232,41,28,0.45), inset 0 1px 0 rgba(255,255,255,0.2);
+    position: relative; overflow: hidden;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .spin-btn::after {
+    content: ''; position: absolute; top: 0; left: -100%;
+    width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+    transition: left 0.4s;
+  }
+  .spin-btn:hover::after { left: 150%; }
+  .spin-btn:hover { transform: translateY(-1px); box-shadow: 0 7px 24px rgba(232,41,28,0.55); }
+  .spin-btn:active { transform: translateY(0); }
+  .spin-btn:disabled { background: linear-gradient(180deg,#333,#1a1a1a); box-shadow:none; cursor:not-allowed; color:#666; text-shadow:none; }
+
+  .message-area { text-align: center; height: 18px; display: flex; align-items: center; justify-content: center; }
+  .message { font-size: clamp(9px, 2.2vw, 12px); font-weight: 700; letter-spacing: 2px; color: var(--yellow); text-shadow: 0 0 14px rgba(255,215,0,0.5); opacity: 0; transition: opacity 0.3s; }
+  .message.visible { opacity: 1; }
+
+  .progress-bar { background: rgba(255,255,255,0.07); border-radius: 4px; height: 4px; margin-top: 8px; overflow: hidden; flex-shrink: 0; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--teal), var(--yellow), var(--red)); border-radius: 4px; transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
+  .progress-labels { display: flex; justify-content: space-between; margin-top: 3px; font-size: clamp(8px, 1.8vw, 9px); color: #553311; }
+
+  /* ── OVERLAY ── */
+  .overlay { position: fixed; inset: 0; background: rgba(8,4,0,0.93); z-index: 100; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
+  .overlay.show { display: flex; }
+  .overlay-title { font-family: impact, 'Arial Narrow', sans-serif; font-size: clamp(52px, 14vw, 80px); letter-spacing: 5px; text-align: center; line-height: 1; }
+  .overlay-title.win-title { background: linear-gradient(180deg, var(--yellow-lt), var(--yellow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; filter: drop-shadow(0 0 28px rgba(255,215,0,0.55)); }
+  .overlay-title.lose-title { color: var(--red); filter: drop-shadow(0 0 28px rgba(232,41,28,0.5)); }
+  .overlay-sub { font-size: clamp(11px, 3vw, 14px); letter-spacing: 2px; color: #aa7744; text-align: center; padding: 0 24px; }
+  .restart-btn { padding: 13px 40px; background: linear-gradient(180deg, var(--red-light), var(--red)); border: none; border-radius: 11px; font-family: impact, 'Arial Narrow', sans-serif; font-size: clamp(20px, 5vw, 26px); letter-spacing: 4px; color: var(--yellow-lt); cursor: pointer; box-shadow: 0 4px 20px rgba(232,41,28,0.4); transition: all 0.15s; margin-top: 6px; text-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+  .restart-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(232,41,28,0.55); }
+
+  .win-flash { animation: winPulse 0.5s ease-out 3; }
+  @keyframes winPulse {
+    0%,100% { box-shadow: 0 0 0 1px rgba(208,216,232,0.15), 0 0 50px rgba(232,41,28,0.2), 0 0 100px rgba(255,215,0,0.08); }
+    50%      { box-shadow: 0 0 0 1px rgba(255,215,0,0.4), 0 0 70px rgba(255,215,0,0.45), 0 0 140px rgba(232,41,28,0.25); }
+  }
+  @keyframes symbolLand { 0% { transform: scale(1.25); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
+  .symbol.landing { animation: symbolLand 0.18s ease-out; }
+
+  .nav-links { text-align: center; margin-top: 6px; flex-shrink: 0; }
+  .nav-links a { color: rgba(232,41,28,0.45); font-size: 10px; letter-spacing: 1px; text-decoration: none; margin: 0 6px; }
+  .nav-links a:hover { color: var(--yellow); }
+</style>
+</head>
+<body>
+<div class="cabinet" id="cabinet">
+
+  <div class="marquee">
+    <div class="marquee-title">American Dinner</div>
+    <div class="marquee-sub">Dinner Slots &bull; 98% RTP</div>
+  </div>
+
+  <div class="lights-row">
+    <div class="bulb"></div><div class="bulb"></div><div class="bulb"></div>
+    <div class="bulb"></div><div class="bulb"></div><div class="bulb"></div>
+    <div class="bulb"></div><div class="bulb"></div><div class="bulb"></div>
+    <div class="bulb"></div><div class="bulb"></div><div class="bulb"></div>
+  </div>
+
+  <div class="screen-frame">
+    <div class="reels-container">
+      <div class="reel-wrapper">
+        <div class="reel" id="reel0">
+          <div class="symbol">💊</div><div class="symbol">💊</div><div class="symbol">💊</div>
+        </div><div class="reel-highlight"></div>
+      </div>
+      <div class="reel-wrapper">
+        <div class="reel" id="reel1">
+          <div class="symbol">💊</div><div class="symbol">💊</div><div class="symbol">💊</div>
+        </div><div class="reel-highlight"></div>
+      </div>
+      <div class="reel-wrapper">
+        <div class="reel" id="reel2">
+          <div class="symbol">💊</div><div class="symbol">💊</div><div class="symbol">💊</div>
+        </div><div class="reel-highlight"></div>
+      </div>
+      <div class="win-line"></div>
+    </div>
+
+    <div class="paytable">
+      <div class="pay-row"><span class="pay-symbols">🍔🍔🍔</span><span class="pay-mult">×100</span></div>
+      <div class="pay-row"><span class="pay-symbols">🍕🍕🍕</span><span class="pay-mult">×20</span></div>
+      <div class="pay-row"><span class="pay-symbols">🍗🍗🍗</span><span class="pay-mult">×10</span></div>
+      <div class="pay-row"><span class="pay-symbols">🌭🌭🌭</span><span class="pay-mult">×5</span></div>
+      <div class="pay-row"><span class="pay-symbols">🍟🍟🍟</span><span class="pay-mult">×4</span></div>
+      <div class="pay-row"><span class="pay-symbols">💊💊💊</span><span class="pay-mult">×3</span></div>
+      <div class="pay-row"><span class="pay-symbols">💊💊</span><span class="pay-mult">×1.5</span></div>
+      <div class="pay-row"><span class="pay-symbols">🍔</span><span class="pay-mult">×1.5</span></div>
+    </div>
+  </div>
+
+  <div class="info-bar">
+    <div class="info-card">
+      <div class="info-label">Balance</div>
+      <div class="info-value balance" id="balance-display">$20.00</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">Last Win</div>
+      <div class="info-value win" id="win-display">—</div>
+    </div>
+    <div class="info-card">
+      <div class="info-label">Bet</div>
+      <div class="info-value" id="bet-display" style="color:#ff8844;">$0.20</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="bet-section">
+      <span class="bet-label">Bet</span>
+      <div class="bet-buttons">
+        <button class="bet-btn active" onclick="setBet(0)">$0.20</button>
+        <button class="bet-btn" onclick="setBet(1)">$0.50</button>
+        <button class="bet-btn" onclick="setBet(2)">$1.00</button>
+        <button class="bet-btn" onclick="setBet(3)">$2.00</button>
+        <button class="bet-btn" onclick="setBet(4)">$5.00</button>
+      </div>
+    </div>
+    <button class="spin-btn" id="spin-btn" onclick="spin()">SPIN</button>
+    <div class="message-area"><div class="message" id="message"></div></div>
+  </div>
+
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+  <div class="progress-labels"><span>$0</span><span>Goal: $100</span></div>
+
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-title" id="overlay-title"></div>
+  <div class="overlay-sub" id="overlay-sub"></div>
+  <button class="restart-btn" onclick="restart()">PLAY AGAIN</button>
+</div>
+
+<script>
+const BETS      = [0.20, 0.50, 1.00, 2.00, 5.00];
+const START_BAL = 20, WIN_GOAL = 100, RTP = 0.98;
+const SYMBOLS   = ['🍔','🍕','🍗','🌭','🍟','💊'];
+const WEIGHTS   = [2, 4, 7, 12, 18, 30];
+const TOT_W     = WEIGHTS.reduce((a,b)=>a+b,0);
+const PAYOUTS   = {'🍔🍔🍔':100,'🍕🍕🍕':20,'🍗🍗🍗':10,'🌭🌭🌭':5,'🍟🍟🍟':4,'💊💊💊':3};
+const JACKPOT_SYM = '🍔';
+const COMMON_SYM  = '💊';
+
+let balance=START_BAL, currentBet=0, spinning=false, msgTimer=null;
+
+function weightedRandom(){
+  let r=Math.random()*TOT_W;
+  for(let i=0;i<WEIGHTS.length;i++){r-=WEIGHTS[i];if(r<=0)return i;}
+  return SYMBOLS.length-1;
+}
+function calcMult(s0,s1,s2){
+  const key=s0+s1+s2;
+  if(PAYOUTS[key])return PAYOUTS[key];
+  if([s0,s1,s2].filter(s=>s===JACKPOT_SYM).length>=1&&(s0===JACKPOT_SYM||s1===JACKPOT_SYM))return 1.5;
+  if([s0,s1,s2].filter(s=>s===COMMON_SYM).length===2)return 1.5;
+  return 0;
+}
+function spinSymbols(){
+  const raw=[weightedRandom(),weightedRandom(),weightedRandom()];
+  const natMult=calcMult(SYMBOLS[raw[0]],SYMBOLS[raw[1]],SYMBOLS[raw[2]]);
+  const gap=(RTP-1)*BETS[currentBet]-(natMult*BETS[currentBet]-BETS[currentBet]);
+  const blend=Math.min(1,Math.abs(gap)/(BETS[currentBet]*0.5));
+  if(Math.random()<blend*0.4){
+    if(gap>0&&natMult===0&&Math.random()<0.3){raw[0]=SYMBOLS.indexOf(COMMON_SYM);raw[1]=SYMBOLS.indexOf(COMMON_SYM);}
+    else if(gap<0&&natMult>3){raw[2]=Math.floor(Math.random()*3)+3;}
+  }
+  return raw.map(i=>SYMBOLS[i]);
+}
+function setBet(idx){if(spinning)return;currentBet=idx;document.querySelectorAll('.bet-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));document.getElementById('bet-display').textContent='$'+BETS[idx].toFixed(2);}
+function setReelSymbols(id,top,mid,bot){const s=document.getElementById(id).querySelectorAll('.symbol');s[0].textContent=top;s[1].textContent=mid;s[2].textContent=bot;}
+function showMsg(text,dur=2000){const el=document.getElementById('message');el.textContent=text;el.classList.add('visible');clearTimeout(msgTimer);if(dur>0)msgTimer=setTimeout(()=>el.classList.remove('visible'),dur);}
+function hideMsg(){document.getElementById('message').classList.remove('visible');}
+function updateUI(){document.getElementById('balance-display').textContent='$'+balance.toFixed(2);document.getElementById('progress-fill').style.width=Math.min(100,Math.max(0,balance/WIN_GOAL*100))+'%';}
+function spin(){
+  if(spinning)return;
+  if(balance<BETS[currentBet]){showMsg('INSUFFICIENT FUNDS');return;}
+  spinning=true;hideMsg();
+  document.getElementById('spin-btn').disabled=true;
+  document.getElementById('win-display').textContent='—';
+  balance=Math.round((balance-BETS[currentBet])*100)/100;updateUI();
+  const res=spinSymbols();
+  for(let i=0;i<3;i++)document.getElementById('reel'+i).classList.add('spinning');
+  [600,900,1200].forEach((delay,ri)=>{
+    setTimeout(()=>{
+      const reel=document.getElementById('reel'+ri);
+      reel.classList.remove('spinning');
+      setReelSymbols('reel'+ri,SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)],res[ri],SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)]);
+      const mid=reel.querySelectorAll('.symbol')[1];mid.classList.add('landing');
+      setTimeout(()=>mid.classList.remove('landing'),200);
+      if(ri===2)setTimeout(()=>resolve(res),200);
+    },delay);
+  });
+}
+function resolve(res){
+  const mult=calcMult(res[0],res[1],res[2]);
+  const winAmt=Math.round(mult*BETS[currentBet]*100)/100;
+  if(winAmt>0){
+    balance=Math.round((balance+winAmt)*100)/100;
+    document.getElementById('win-display').textContent='+$'+winAmt.toFixed(2);
+    if(mult>=10){showMsg('🍔 ORDER UP! JACKPOT! '+res.join(''),3000);document.getElementById('cabinet').classList.add('win-flash');setTimeout(()=>document.getElementById('cabinet').classList.remove('win-flash'),1600);}
+    else if(mult>=5){showMsg('🍕 BIG ORDER!',2500);}
+    else{showMsg('🍟 GOOD EATS!',2000);}
+  }else{showMsg('No order... try again!',1500);}
+  updateUI();spinning=false;document.getElementById('spin-btn').disabled=false;
+  if(balance<BETS[0])setTimeout(()=>endScreen('lose'),600);
+  else if(balance>=WIN_GOAL)setTimeout(()=>endScreen('win'),600);
+}
+function endScreen(type){
+  const t=document.getElementById('overlay-title'),s=document.getElementById('overlay-sub');
+  if(type==='win'){t.textContent='CHECK PLEASE!';t.className='overlay-title win-title';s.textContent='You hit $100! Best meal in the house!';}
+  else{t.textContent='CLOSED';t.className='overlay-title lose-title';s.textContent="You can't afford the minimum bet. Come back soon!";}
+  document.getElementById('overlay').classList.add('show');
+}
+function restart(){
+  balance=START_BAL;currentBet=0;spinning=false;
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('spin-btn').disabled=false;
+  document.getElementById('win-display').textContent='—';
+  document.querySelectorAll('.bet-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+  document.getElementById('bet-display').textContent='$0.20';
+  hideMsg();updateUI();
+  for(let i=0;i<3;i++){setReelSymbols('reel'+i,'💊','💊','💊');document.getElementById('reel'+i).classList.remove('spinning');}
+}
+updateUI();
+</script>
+</body>
+</html>

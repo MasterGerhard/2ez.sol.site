@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🫧 Gumball Machine</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: radial-gradient(ellipse at 30% 20%, rgba(80,0,130,.45) 0%, transparent 55%),
+                radial-gradient(ellipse at 75% 80%, rgba(0,15,90,.5) 0%, transparent 55%),
+                linear-gradient(180deg, #0d0820 0%, #080614 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 20px 12px 36px;
+    user-select: none;
+    overflow-x: hidden;
+  }
+
+  #stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .star {
+    position: absolute;
+    border-radius: 50%;
+    background: #fff;
+    animation: twinkle linear infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: .15; transform: scale(.8); }
+    50%       { opacity: .8;  transform: scale(1.2); }
+  }
+
+  h1 {
+    font-family: 'Fredoka One', cursive;
+    font-size: clamp(1.7rem, 5vw, 2.4rem);
+    color: #ffd700;
+    letter-spacing: 4px;
+    text-align: center;
+    text-shadow: 3px 3px 0 #7a5c00, 0 0 24px rgba(255,215,0,.4);
+    margin-bottom: 6px;
+  }
+
+  .score {
+    font-size: .95rem;
+    color: rgba(255,255,255,.65);
+    font-weight: 600;
+    margin-bottom: 18px;
+    letter-spacing: .5px;
+  }
+  .score strong { color: #ff6b9d; font-size: 1.1rem; }
+
+  /* ---- Machine wrapper ---- */
+  #game-wrap {
+    position: relative;
+    width: min(360px, 95vw);
+  }
+
+  #machine-stage {
+    background: #0c061e;
+    border-radius: 24px;
+    padding: 18px 14px 14px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 24px 64px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04);
+  }
+
+  #machine-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Handle hover/active */
+  #gm-handle { cursor: default; }
+  #gm-handle.ready { cursor: pointer; }
+  @keyframes handleGlow {
+    0%, 100% { filter: brightness(1.7) drop-shadow(0 0 9px rgba(255,220,50,.9)); }
+    50%       { filter: brightness(1); }
+  }
+  #gm-handle.ready { animation: handleGlow 1s ease-in-out infinite; }
+
+  /* Popup */
+  #notif {
+    position: absolute;
+    left: 50%;
+    top: 44%;
+    transform: translate(-50%, -50%) scale(0);
+    background: #fff;
+    border-radius: 22px;
+    padding: 14px 28px;
+    text-align: center;
+    pointer-events: none;
+    z-index: 30;
+    font-family: 'Fredoka One', cursive;
+    box-shadow: 0 10px 40px rgba(0,0,0,.35);
+    min-width: 150px;
+  }
+  #notif .em  { font-size: 2.4rem; display: block; line-height: 1.2; }
+  #notif .nm  { font-size: 1.3rem; margin-top: 4px; }
+  @keyframes notifShow {
+    0%         { transform: translate(-50%,-50%) scale(0) rotate(-8deg); opacity: 0; }
+    14%        { transform: translate(-50%,-62%) scale(1.07) rotate(2deg); opacity: 1; }
+    24%, 70%   { transform: translate(-50%,-62%) scale(1) rotate(0); opacity: 1; }
+    100%       { transform: translate(-50%,-70%) scale(.4); opacity: 0; }
+  }
+  #notif.show { animation: notifShow 2.4s ease-out forwards; }
+
+  /* ---- Tray ---- */
+  #tray-box {
+    width: min(320px, 92vw);
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    padding: 12px 16px;
+    margin-top: 10px;
+    min-height: 68px;
+    box-shadow: inset 0 4px 12px rgba(0,0,0,.4);
+  }
+  .tray-label {
+    font-size: .62rem;
+    font-weight: 700;
+    color: rgba(255,255,255,.3);
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    margin-bottom: 10px;
+  }
+  #tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    min-height: 30px;
+    align-items: center;
+  }
+  .empty-msg {
+    font-size: .78rem;
+    color: rgba(255,255,255,.25);
+    font-style: italic;
+  }
+  @keyframes ballPop {
+    from { transform: scale(0) rotate(-25deg); }
+    to   { transform: scale(1); }
+  }
+  .gb-dot {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    box-shadow: inset -3px -3px 7px rgba(0,0,0,.32),
+                inset 2px 2px 6px rgba(255,255,255,.4),
+                0 2px 7px rgba(0,0,0,.35);
+    animation: ballPop .4s cubic-bezier(.34, 1.56, .64, 1);
+    flex-shrink: 0;
+  }
+
+  /* ---- Coin button ---- */
+  #coin-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  #coin-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #f0c030;
+    border: 3px solid #c8900c;
+    border-bottom: 5px solid #9e6e0a;
+    cursor: pointer;
+    font-family: 'Fredoka One', cursive;
+    font-size: .9rem;
+    color: #5a3800;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,.2),
+                inset 0 2px 5px rgba(255,255,255,.45),
+                0 6px 20px rgba(200,160,30,.4);
+    transition: transform .15s, box-shadow .15s, border-bottom-width .1s;
+    outline: none;
+  }
+  #coin-btn:hover:not(:disabled) {
+    transform: translateY(-3px) scale(1.1) rotate(-6deg);
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,.2),
+                inset 0 2px 5px rgba(255,255,255,.45),
+                0 10px 28px rgba(200,160,30,.6);
+  }
+  #coin-btn:active:not(:disabled) {
+    transform: scale(.93);
+    border-bottom-width: 2px;
+  }
+  #coin-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+  @keyframes coinFly {
+    0%   { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+    50%  { opacity: .6; transform: translateY(-75px) rotate(270deg) scale(.62); }
+    100% { opacity: 0; transform: translateY(-168px) translateX(46px) rotate(540deg) scale(.1); }
+  }
+  #coin-btn.flying { animation: coinFly .55s ease-in forwards; }
+
+  #hint {
+    font-size: .82rem;
+    color: rgba(255,255,255,.5);
+    font-weight: 600;
+    letter-spacing: .4px;
+    text-align: center;
+    transition: color .3s;
+  }
+  #hint.active {
+    color: #ffd700;
+    animation: hintPulse 1.1s ease-in-out infinite;
+  }
+  @keyframes hintPulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .4; }
+  }
+
+  /* Globe gumball wobble */
+  @keyframes wobble {
+    from { transform: none; }
+    to   { transform: translateY(4px) rotate(10deg); }
+  }
+</style>
+</head>
+<body>
+
+<div id="stars"></div>
+
+<h1>🫧 GUMBALL MACHINE</h1>
+<div class="score">Gumballs collected: <strong id="count">0</strong></div>
+
+<div id="game-wrap">
+  <div id="machine-stage">
+
+    <svg id="machine-svg" viewBox="0 0 412 512">
+      <defs>
+        <linearGradient id="cH" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%"   stop-color="#606060"/>
+          <stop offset="14%"  stop-color="#aeaeae"/>
+          <stop offset="42%"  stop-color="#eaeaea"/>
+          <stop offset="58%"  stop-color="#d4d4d4"/>
+          <stop offset="86%"  stop-color="#a1a1a1"/>
+          <stop offset="100%" stop-color="#585858"/>
+        </linearGradient>
+        <linearGradient id="cV" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%"   stop-color="#e7e7e7"/>
+          <stop offset="35%"  stop-color="#c0c0c0"/>
+          <stop offset="70%"  stop-color="#989898"/>
+          <stop offset="100%" stop-color="#6e6e6e"/>
+        </linearGradient>
+        <linearGradient id="bR" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%"   stop-color="#9b0b0b"/>
+          <stop offset="22%"  stop-color="#c91717"/>
+          <stop offset="46%"  stop-color="#e51f1f"/>
+          <stop offset="54%"  stop-color="#dc1d1d"/>
+          <stop offset="78%"  stop-color="#ba1313"/>
+          <stop offset="100%" stop-color="#880808"/>
+        </linearGradient>
+        <radialGradient id="gG" cx="32%" cy="28%" r="65%">
+          <stop offset="0%"   stop-color="rgba(255,255,255,.28)"/>
+          <stop offset="55%"  stop-color="rgba(210,228,248,.06)"/>
+          <stop offset="100%" stop-color="rgba(120,160,200,.14)"/>
+        </radialGradient>
+        <radialGradient id="gS" cx="50%" cy="100%" r="55%">
+          <stop offset="0%"   stop-color="rgba(0,0,0,.22)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </radialGradient>
+        <radialGradient id="fS" cx="50%" cy="50%" r="50%">
+          <stop offset="0%"   stop-color="rgba(0,0,0,.45)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </radialGradient>
+        <clipPath id="gC"><circle cx="200" cy="162" r="109"/></clipPath>
+      </defs>
+
+      <!-- Floor shadow -->
+      <ellipse cx="206" cy="506" rx="144" ry="12" fill="url(#fS)"/>
+
+      <!-- Legs -->
+      <rect x="115" y="473" width="27" height="26" rx="6" fill="url(#cV)"/>
+      <rect x="270" y="473" width="27" height="26" rx="6" fill="url(#cV)"/>
+
+      <!-- Base plate -->
+      <rect x="82" y="455" width="248" height="40" rx="12" fill="url(#cH)"/>
+      <ellipse cx="206" cy="456" rx="121" ry="7" fill="rgba(255,255,255,.16)"/>
+      <rect x="90" y="462" width="232" height="5" rx="2.5" fill="rgba(255,255,255,.09)"/>
+
+      <!-- Chute -->
+      <rect x="166" y="433" width="80" height="27" rx="8" fill="#242424"/>
+      <rect x="170" y="437" width="72" height="19" rx="6" fill="#131313"/>
+      <rect x="173" y="440" width="66" height="12" rx="4" fill="#090909"/>
+      <rect x="174" y="440" width="64" height="4"  rx="2" fill="rgba(255,255,255,.03)"/>
+
+      <!-- Body -->
+      <rect x="112" y="276" width="188" height="164" rx="15" fill="url(#bR)"/>
+      <rect x="112" y="276" width="188" height="70"  rx="15 15 0 0" fill="rgba(255,255,255,.1)"/>
+      <rect x="113" y="281" width="7"   height="154" rx="3.5 0 0 3.5" fill="rgba(255,255,255,.08)"/>
+      <rect x="293" y="281" width="7"   height="154" rx="0 3.5 3.5 0" fill="rgba(0,0,0,.14)"/>
+
+      <!-- Label panel -->
+      <rect x="128" y="288" width="124" height="62" rx="10" fill="rgba(0,0,0,.22)"/>
+      <rect x="130" y="290" width="120" height="58" rx="9" fill="rgba(0,0,0,.17)" stroke="rgba(255,255,255,.1)" stroke-width="1"/>
+      <text x="190" y="313" text-anchor="middle" fill="#ffd166" font-family="'Fredoka One',cursive" font-size="13" letter-spacing="3.5">GUMBALLS</text>
+      <line x1="140" y1="318" x2="240" y2="318" stroke="rgba(255,255,255,.12)" stroke-width="1"/>
+      <text x="190" y="342" text-anchor="middle" fill="#fff" font-family="'Fredoka One',cursive" font-size="26">25¢</text>
+
+      <!-- Coin slot -->
+      <text x="282" y="289" text-anchor="middle" fill="rgba(255,255,255,.24)" font-family="'Fredoka One',cursive" font-size="7" letter-spacing="1">COIN</text>
+      <rect x="258" y="292" width="46" height="12" rx="6" fill="#222" stroke="#444" stroke-width="1"/>
+      <rect x="260" y="294" width="42" height="8"  rx="4" fill="#0d0d0d"/>
+      <rect x="261" y="295" width="40" height="3"  rx="1.5" fill="rgba(255,255,255,.04)"/>
+
+      <!-- Coin return knob -->
+      <circle cx="276" cy="421" r="10" fill="url(#cH)"/>
+      <circle cx="276" cy="421" r="7"  fill="url(#cV)"/>
+      <circle cx="273" cy="418" r="3"  fill="rgba(255,255,255,.42)"/>
+
+      <!-- Handle group — pivot at (304, 348) -->
+      <g id="gm-handle" transform="rotate(0,304,348)">
+        <circle cx="304" cy="348" r="16" fill="url(#cH)" stroke="#777" stroke-width="1.5"/>
+        <circle cx="304" cy="348" r="10" fill="url(#cV)"/>
+        <circle cx="301" cy="345" r="4"  fill="rgba(255,255,255,.3)"/>
+        <rect x="304" y="341" width="64" height="14" rx="7" fill="url(#cH)"/>
+        <rect x="306" y="343" width="60" height="5"  rx="2.5" fill="rgba(255,255,255,.16)"/>
+        <circle cx="370" cy="348" r="20" fill="#d81414"/>
+        <circle cx="370" cy="348" r="16" fill="#c21010"/>
+        <circle cx="370" cy="348" r="11" fill="#ae0c0c"/>
+        <ellipse cx="364" cy="342" rx="6" ry="4" fill="rgba(255,100,100,.36)" transform="rotate(-30,364,342)"/>
+        <circle cx="370" cy="348" r="20" fill="none" stroke="#820808" stroke-width="1.5"/>
+      </g>
+
+      <!-- Collar lower ring -->
+      <rect x="108" y="270" width="196" height="12" rx="6"  fill="url(#cH)"/>
+      <ellipse cx="206" cy="272" rx="97" ry="5.5"           fill="rgba(255,255,255,.17)"/>
+
+      <!-- Collar neck -->
+      <path d="M128,270 L120,240 L292,240 L284,270 Z" fill="url(#cV)"/>
+      <path d="M128,270 L120,240 L132,240 L140,270 Z" fill="rgba(255,255,255,.14)"/>
+      <path d="M284,270 L292,240 L280,240 L273,270 Z" fill="rgba(0,0,0,.1)"/>
+
+      <!-- Collar upper ring -->
+      <rect x="115" y="232" width="182" height="14" rx="7"  fill="url(#cH)"/>
+      <ellipse cx="206" cy="234" rx="90" ry="5.5"           fill="rgba(255,255,255,.19)"/>
+
+      <!-- Globe inner shadow -->
+      <circle cx="200" cy="162" r="109" fill="url(#gS)" clip-path="url(#gC)"/>
+
+      <!-- Globe gumballs (generated) -->
+      <g id="globe-balls" clip-path="url(#gC)"></g>
+
+      <!-- Globe glass overlay -->
+      <circle cx="200" cy="162" r="109" fill="url(#gG)"/>
+
+      <!-- Glass reflections -->
+      <ellipse cx="156" cy="111" rx="53" ry="37" fill="rgba(255,255,255,.13)" transform="rotate(-25,156,111)"/>
+      <ellipse cx="144" cy="103" rx="27" ry="18" fill="rgba(255,255,255,.23)" transform="rotate(-25,144,103)"/>
+      <ellipse cx="136" cy="98"  rx="12" ry="8"  fill="rgba(255,255,255,.47)" transform="rotate(-25,136,98)"/>
+      <ellipse cx="131" cy="95"  rx="5"  ry="3"  fill="rgba(255,255,255,.67)" transform="rotate(-25,131,95)"/>
+
+      <!-- Globe rim -->
+      <circle cx="200" cy="162" r="109" fill="none" stroke="rgba(200,222,244,.26)" stroke-width="5"/>
+      <circle cx="200" cy="162" r="109" fill="none" stroke="#838383" stroke-width="2"/>
+
+      <!-- Cap ring -->
+      <ellipse cx="200" cy="57" rx="65" ry="12" fill="url(#cH)" stroke="#666" stroke-width="1"/>
+
+      <!-- Cap dome -->
+      <path d="M137,57 C137,36 165,14 200,11 C235,14 263,36 263,57 Z" fill="url(#cV)"/>
+      <path d="M142,57 C142,41 164,22 192,17 C175,24 153,40 150,57 Z" fill="rgba(255,255,255,.2)"/>
+      <ellipse cx="200" cy="57" rx="65" ry="11" fill="rgba(255,255,255,.1)"/>
+
+      <!-- Finial -->
+      <circle cx="200" cy="11" r="10" fill="url(#cH)"/>
+      <circle cx="200" cy="11" r="7"  fill="url(#cV)"/>
+      <circle cx="197" cy="8"  r="3"  fill="rgba(255,255,255,.46)"/>
+
+      <!-- Falling gumball (animated by JS) -->
+      <circle id="gm-ball" cx="200" cy="195" r="14" opacity="0"
+        style="pointer-events:none; filter:drop-shadow(0 2px 5px rgba(0,0,0,.5))"/>
+    </svg>
+  </div>
+
+  <!-- Flavor popup -->
+  <div id="notif">
+    <span class="em" id="notif-em"></span>
+    <div class="nm" id="notif-nm"></div>
+  </div>
+</div>
+
+<!-- Collected gumballs tray -->
+<div id="tray-box">
+  <div class="tray-label">🫧 Your Gumballs</div>
+  <div id="tray">
+    <span id="empty-msg" class="empty-msg">Insert a coin to play…</span>
+  </div>
+</div>
+
+<!-- Coin button -->
+<div id="coin-area">
+  <button id="coin-btn" onclick="insertCoin()">25¢</button>
+  <div id="hint">← Insert coin to play!</div>
+</div>
+
+<script>
+// ── Flavors ──────────────────────────────────────────────
+const FLAVORS = [
+  { c:'#FF4757', h:'#FF9099', n:'Strawberry',   e:'🍓' },
+  { c:'#FF6348', h:'#FF9A80', n:'Mango',         e:'🥭' },
+  { c:'#FFA502', h:'#FFCA70', n:'Orange',        e:'🍊' },
+  { c:'#FFE000', h:'#FFF07A', n:'Lemon',         e:'🍋' },
+  { c:'#26de81', h:'#62F2A8', n:'Lime',          e:'🍏' },
+  { c:'#45aaf2', h:'#82CCF8', n:'Blueberry',     e:'🫐' },
+  { c:'#a55eea', h:'#CE94F8', n:'Grape',         e:'🍇' },
+  { c:'#fd9644', h:'#FDBC80', n:'Peach',         e:'🍑' },
+  { c:'#ff6b9d', h:'#FFA2C4', n:'Cotton Candy',  e:'🍭' },
+  { c:'#00d2d3', h:'#62EAEA', n:'Mint',          e:'🌿' },
+  { c:'#FC5C65', h:'#FD8C90', n:'Cherry',        e:'🍒' },
+  { c:'#e84393', h:'#F282BC', n:'Bubblegum',     e:'💗' },
+];
+
+let count = 0, busy = false, handleReady = false, audioCtx = null;
+
+// ── Starfield ────────────────────────────────────────────
+(function() {
+  const c = document.getElementById('stars');
+  for (let i = 0; i < 90; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const sz = Math.random() < .7 ? 1 : Math.random() < .8 ? 2 : 3;
+    s.style.cssText = `width:${sz}px;height:${sz}px;`
+      + `left:${Math.random()*100}vw;top:${Math.random()*100}vh;`
+      + `animation-duration:${1.5+Math.random()*3}s;`
+      + `animation-delay:${Math.random()*4}s;`
+      + `opacity:${.15+Math.random()*.5};`;
+    c.appendChild(s);
+  }
+}());
+
+// ── Globe gumballs ───────────────────────────────────────
+(function() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const g  = document.getElementById('globe-balls');
+  const GX = 200, GY = 162, GR = 109, R = 14;
+  const pts = [];
+
+  for (let i = 0; i < 400 && pts.length < 22; i++) {
+    const a  = Math.random() * Math.PI * 2;
+    const r  = Math.pow(Math.random(), .55) * (GR - R - 5);
+    const x  = GX + r * Math.cos(a);
+    const y  = GY + r * Math.sin(a) + 22;   // bias downward
+    if (Math.sqrt((x-GX)**2 + (y-GY)**2) + R > GR - 4) continue;
+    let ok = true;
+    for (const p of pts)
+      if (Math.sqrt((x-p.x)**2+(y-p.y)**2) < R*2.15) { ok=false; break; }
+    if (!ok) continue;
+    pts.push({ x, y, f: FLAVORS[pts.length % FLAVORS.length] });
+  }
+
+  pts.forEach((p, i) => {
+    const dur = 2.3 + (i % 6) * .35;
+    const del = i * .11;
+
+    const circle = document.createElementNS(ns, 'circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y);
+    circle.setAttribute('r', R);    circle.setAttribute('fill', p.f.c);
+    circle.style.animation = `wobble ${dur}s ${del}s ease-in-out infinite alternate`;
+    g.appendChild(circle);
+
+    const shine = document.createElementNS(ns, 'circle');
+    shine.setAttribute('cx', p.x - 4); shine.setAttribute('cy', p.y - 4);
+    shine.setAttribute('r', 5);         shine.setAttribute('fill', 'rgba(255,255,255,.42)');
+    shine.style.animation = `wobble ${dur}s ${del}s ease-in-out infinite alternate`;
+    g.appendChild(shine);
+  });
+}());
+
+// ── Audio ─────────────────────────────────────────────────
+function getAC() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function sfxCoin() {
+  try {
+    const a=getAC(), o=a.createOscillator(), g=a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(1400, a.currentTime);
+    o.frequency.exponentialRampToValueAtTime(680, a.currentTime+.14);
+    g.gain.setValueAtTime(.2, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, a.currentTime+.32);
+    o.start(); o.stop(a.currentTime+.32);
+  } catch(e) {}
+}
+function sfxClick() {
+  try {
+    const a = getAC();
+    const buf = a.createBuffer(1, Math.floor(a.sampleRate * .12), a.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++)
+      d[i] = (Math.random()*2-1) * Math.exp(-i / (a.sampleRate * .012));
+    const s = a.createBufferSource(), g = a.createGain();
+    s.buffer = buf; s.connect(g); g.connect(a.destination);
+    g.gain.value = .45; s.start();
+  } catch(e) {}
+}
+function sfxRoll() {
+  try {
+    const a=getAC(), o=a.createOscillator(), g=a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.type='sine';
+    o.frequency.setValueAtTime(340, a.currentTime);
+    o.frequency.exponentialRampToValueAtTime(180, a.currentTime+.22);
+    g.gain.setValueAtTime(.17, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, a.currentTime+.55);
+    o.start(); o.stop(a.currentTime+.55);
+  } catch(e) {}
+}
+function sfxPop() {
+  try {
+    const a=getAC(), o=a.createOscillator(), g=a.createGain();
+    o.connect(g); g.connect(a.destination);
+    o.type='sine';
+    o.frequency.setValueAtTime(560, a.currentTime);
+    o.frequency.exponentialRampToValueAtTime(280, a.currentTime+.09);
+    g.gain.setValueAtTime(.17, a.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, a.currentTime+.28);
+    o.start(); o.stop(a.currentTime+.28);
+  } catch(e) {}
+}
+
+// ── Handle animation ─────────────────────────────────────
+function animHandle() {
+  return new Promise(resolve => {
+    const h  = document.getElementById('gm-handle');
+    const t0 = performance.now();
+    (function loop(now) {
+      const t = Math.min((now - t0) / 580, 1);
+      const a = t < .35 ? (t/.35)*42
+              : t < .62 ? 42 - ((t-.35)/.27)*4
+              : t < .82 ? 38 - ((t-.62)/.2)*35
+              :            3  - ((t-.82)/.18)*3;
+      h.setAttribute('transform', `rotate(${a.toFixed(2)},304,348)`);
+      if (t < 1) requestAnimationFrame(loop);
+      else { h.setAttribute('transform','rotate(0,304,348)'); resolve(); }
+    })(t0);
+  });
+}
+
+// ── Ball animation (2-phase) ──────────────────────────────
+function animBall(flavor) {
+  return new Promise(resolve => {
+    const b = document.getElementById('gm-ball');
+    b.setAttribute('fill', flavor.c);
+    b.setAttribute('opacity', '1');
+
+    // Phase 1: visible drop inside globe (y 195 → 268)
+    const t0 = performance.now();
+    (function p1(now) {
+      const t = Math.min((now - t0) / 310, 1);
+      b.setAttribute('cy', (195 + 73 * t).toFixed(1));
+      if (t < 1) { requestAnimationFrame(p1); return; }
+
+      b.setAttribute('opacity', '0');          // disappears into machine
+      setTimeout(() => {
+        // Phase 2: emerges at chute with a little bounce
+        b.setAttribute('cy', '435');
+        b.setAttribute('opacity', '1');
+        const t1 = performance.now();
+        (function p2(now) {
+          const t = Math.min((now - t1) / 380, 1);
+          const y = t < .55 ? 435 + 9*(t/.55)
+                  : t < .78 ? 444 - 5*((t-.55)/.23)
+                  :            439 + 3*((t-.78)/.22);
+          b.setAttribute('cy', y.toFixed(1));
+          if (t < 1) { requestAnimationFrame(p2); return; }
+          b.setAttribute('opacity', '0');
+          b.setAttribute('cy', '195');
+          resolve();
+        })(t1);
+      }, 370);
+    })(t0);
+  });
+}
+
+// ── Main game flow ────────────────────────────────────────
+function insertCoin() {
+  if (busy) return;
+  busy = true;
+
+  const btn  = document.getElementById('coin-btn');
+  const hint = document.getElementById('hint');
+  const hg   = document.getElementById('gm-handle');
+
+  btn.disabled = true;
+  sfxCoin();
+  btn.classList.add('flying');
+
+  setTimeout(() => {
+    btn.classList.remove('flying');
+    btn.style.opacity = '0';
+    hint.textContent = '↗ Turn the handle!';
+    hint.classList.add('active');
+
+    hg.classList.add('ready');
+    handleReady = true;
+
+    hg.addEventListener('click', async function onHandle() {
+      if (!handleReady) return;
+      handleReady = false;
+      hg.classList.remove('ready');
+      hint.classList.remove('active');
+      hint.textContent = '✨ Here it comes!';
+
+      sfxClick();
+      await animHandle();
+
+      const fl = FLAVORS[Math.floor(Math.random() * FLAVORS.length)];
+      sfxRoll();
+      await animBall(fl);
+
+      sfxPop();
+      addGumball(fl);
+      count++;
+      document.getElementById('count').textContent = count;
+      showNotif(fl);
+
+      setTimeout(() => {
+        btn.style.opacity = '1';
+        btn.disabled = false;
+        hint.textContent = '← Insert another coin!';
+        busy = false;
+      }, 360);
+    }, { once: true });
+  }, 560);
+}
+
+function addGumball(f) {
+  const tray = document.getElementById('tray');
+  const em   = document.getElementById('empty-msg');
+  if (em) em.remove();
+  const d = document.createElement('div');
+  d.className = 'gb-dot';
+  d.style.background = `radial-gradient(circle at 32% 28%, ${f.h}, ${f.c})`;
+  d.title = f.n;
+  tray.appendChild(d);
+}
+
+function showNotif(f) {
+  const p = document.getElementById('notif');
+  document.getElementById('notif-em').textContent = f.e;
+  document.getElementById('notif-nm').textContent = f.n + '!';
+  document.getElementById('notif-nm').style.color = f.c;
+  p.style.borderTop = `4px solid ${f.c}`;
+  p.classList.remove('show');
+  void p.offsetWidth;    // force reflow
+  p.classList.add('show');
+}
+</script>
+</body>
+</html>

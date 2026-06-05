@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Solitaire</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Mono:wght@400;500&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --felt:#1a4a2e;
+  --gold:#c9a84c;
+  --gold-light:#e8c96a;
+  --card-radius:6px;
+  --gap:6px;
+  /* Card dimensions — fixed pixels, computed in JS and set here */
+  --cw:62px;
+  --ch:87px;
+  --fan-down:10px;
+  --fan-face:19px;
+}
+
+html,body{
+  height:100%; width:100%;
+  overflow:hidden;
+  touch-action:none;
+  user-select:none; -webkit-user-select:none;
+  font-family:'DM Mono',monospace;
+  background:#0f1c14;
+}
+
+body{
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  padding:14px;
+}
+
+/* ── CARD SHELL ── */
+#card-shell{
+  width:100%; max-width:640px;
+  height:calc(100vh - 28px); max-height:900px;
+  border-radius:22px; overflow:hidden; position:relative;
+  box-shadow:0 0 0 1px rgba(201,168,76,0.2), 0 10px 40px rgba(0,0,0,0.6);
+  display:flex; flex-direction:column;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(31,85,53,0.55) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 80%, rgba(18,45,29,0.75) 0%, transparent 60%),
+    repeating-linear-gradient(45deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px),
+    var(--felt);
+}
+
+/* ── TOPBAR ── */
+#topbar{
+  width:100%; display:flex; align-items:center;
+  justify-content:space-between;
+  padding:10px 14px 8px; flex-shrink:0;
+  border-bottom:1px solid rgba(201,168,76,0.12);
+}
+#title{
+  font-family:'Playfair Display',serif;
+  font-size:1.2rem; color:var(--gold);
+  letter-spacing:0.04em;
+}
+#stats{display:flex;gap:12px;font-size:0.65rem;color:rgba(201,168,76,0.75)}
+#stats span{display:flex;flex-direction:column;align-items:center;gap:1px}
+#stats .val{font-size:0.85rem;font-weight:500;color:var(--gold-light)}
+#btn-new{
+  background:none; border:1px solid rgba(201,168,76,0.45);
+  color:var(--gold); font-family:'DM Mono',monospace;
+  font-size:0.65rem; padding:4px 9px; border-radius:4px;
+  cursor:pointer; transition:all 0.2s; letter-spacing:0.05em;
+}
+#btn-new:hover{background:rgba(201,168,76,0.12)}
+#btn-new:active{transform:scale(0.96)}
+
+/* ── BOARD ── */
+#board{
+  flex:1; width:100%;
+  display:flex; flex-direction:column;
+  padding:8px; gap:var(--gap);
+  overflow:hidden;
+}
+
+/* ── TOP ROW ── */
+#top-row{
+  display:grid;
+  grid-template-columns:repeat(7,var(--cw));
+  gap:var(--gap);
+  justify-content:center;
+  flex-shrink:0;
+}
+
+/* ── TABLEAU ── */
+#tableau{
+  display:grid;
+  grid-template-columns:repeat(7,var(--cw));
+  gap:var(--gap);
+  justify-content:center;
+  flex:1; align-items:start;
+}
+
+/* ── PILE SLOT ── */
+.pile{
+  position:relative;
+  width:var(--cw); height:var(--ch);
+}
+.pile-slot{
+  position:absolute; inset:0;
+  border:2px dashed rgba(201,168,76,0.22);
+  border-radius:var(--card-radius);
+  background:rgba(0,0,0,0.14);
+  display:flex; align-items:center; justify-content:center;
+}
+.slot-icon{opacity:0.22}
+
+/* ── CARD BASE ── */
+.card{
+  position:absolute;
+  width:var(--cw); height:var(--ch);
+  border-radius:var(--card-radius);
+  cursor:pointer;
+  box-shadow:0 2px 5px rgba(0,0,0,0.5),0 1px 2px rgba(0,0,0,0.3);
+  touch-action:none;
+  -webkit-tap-highlight-color:transparent;
+  overflow:hidden;
+  /* GPU layer */
+  will-change:transform;
+  backface-visibility:hidden;
+}
+
+/* ── FACE DOWN ── */
+.card.face-down{
+  background:#1e3a8a;
+  border:1.5px solid rgba(255,255,255,0.08);
+}
+.card.face-down .back-pattern{
+  position:absolute; inset:4px;
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:3px;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,0.05) 0px,rgba(255,255,255,0.05) 2px,
+      transparent 2px,transparent 6px
+    );
+}
+
+/* ── FACE UP ── */
+.card.face-up{
+  background:#faf7f0;
+  border:1.5px solid rgba(0,0,0,0.13);
+}
+
+/* rank label */
+.card-label{
+  position:absolute;
+  display:flex; flex-direction:column; align-items:center;
+  gap:1px; line-height:1;
+}
+.card-label.tl{top:3px;left:4px}
+.card-label.br{bottom:3px;right:4px;transform:rotate(180deg)}
+.rank-text{
+  font-family:'Playfair Display',serif;
+  font-size:12px; font-weight:700;
+  line-height:1;
+}
+.suit-pip{display:block; width:10px; height:10px}
+
+/* center pip */
+.card-center-pip{
+  position:absolute;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  width:22px; height:22px;
+  pointer-events:none;
+}
+
+.red-card .rank-text{color:#c0392b}
+.black-card .rank-text{color:#111}
+
+/* ── DRAGGING ── */
+.card.dragging{
+  box-shadow:0 16px 36px rgba(0,0,0,0.65),0 4px 12px rgba(0,0,0,0.4);
+  pointer-events:none;
+}
+
+/* ── TABLEAU COL ── */
+.tableau-col{
+  position:relative;
+  width:var(--cw);
+  /* height set by JS */
+}
+
+/* ── WIN OVERLAY ── */
+#win-overlay{
+  display:none; position:absolute; inset:0;
+  background:rgba(0,0,0,0.72);
+  z-index:2000;
+  flex-direction:column; align-items:center; justify-content:center;
+  gap:18px; border-radius:22px;
+}
+#win-overlay.show{display:flex}
+#win-msg{
+  font-family:'Playfair Display',serif;
+  font-size:2.2rem; color:var(--gold);
+  animation:gpulse 1.8s infinite;
+}
+@keyframes gpulse{
+  0%,100%{text-shadow:0 0 20px rgba(201,168,76,0.4)}
+  50%{text-shadow:0 0 50px rgba(201,168,76,0.9)}
+}
+#win-sub{color:rgba(255,255,255,0.65);font-size:0.8rem}
+#btn-play-again{
+  background:var(--gold); color:#111;
+  border:none; font-family:'DM Mono',monospace;
+  font-size:0.85rem; font-weight:500;
+  padding:11px 26px; border-radius:6px;
+  cursor:pointer; letter-spacing:0.07em;
+}
+
+/* confetti */
+.confetti-piece{
+  position:fixed; width:7px; height:7px; border-radius:2px;
+  animation:cfall linear forwards; z-index:3000; pointer-events:none;
+}
+@keyframes cfall{
+  0%{transform:translateY(-20px) rotate(0deg);opacity:1}
+  100%{transform:translateY(110vh) rotate(720deg);opacity:0}
+}
+</style>
+</head>
+<body>
+<div id="card-shell">
+  <div id="topbar">
+    <div id="title">♠ Solitaire</div>
+    <div id="stats">
+      <span><div class="val" id="score-val">0</div>score</span>
+      <span><div class="val" id="moves-val">0</div>moves</span>
+      <span><div class="val" id="time-val">0:00</div>time</span>
+    </div>
+    <button id="btn-new">NEW GAME</button>
+  </div>
+
+  <div id="board">
+    <div id="top-row">
+      <div class="pile" id="stock"><div class="pile-slot"><span class="slot-icon"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 3v14M3 10h14" stroke="rgba(201,168,76,0.5)" stroke-width="2" stroke-linecap="round"/></svg></span></div></div>
+      <div class="pile" id="waste"><div class="pile-slot"></div></div>
+      <div class="pile" id="spacer" style="visibility:hidden"></div>
+      <div class="pile" id="found-0"><div class="pile-slot"><span class="slot-icon"></span></div></div>
+      <div class="pile" id="found-1"><div class="pile-slot"><span class="slot-icon"></span></div></div>
+      <div class="pile" id="found-2"><div class="pile-slot"><span class="slot-icon"></span></div></div>
+      <div class="pile" id="found-3"><div class="pile-slot"><span class="slot-icon"></span></div></div>
+    </div>
+    <div id="tableau">
+      <div class="pile tableau-col" id="col-0"></div>
+      <div class="pile tableau-col" id="col-1"></div>
+      <div class="pile tableau-col" id="col-2"></div>
+      <div class="pile tableau-col" id="col-3"></div>
+      <div class="pile tableau-col" id="col-4"></div>
+      <div class="pile tableau-col" id="col-5"></div>
+      <div class="pile tableau-col" id="col-6"></div>
+    </div>
+  </div>
+
+  <div id="win-overlay">
+    <div id="win-msg">You Win! 🎉</div>
+    <div id="win-sub"></div>
+    <button id="btn-play-again">Play Again</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+//  PIXEL-ART SVG SUIT ICONS
+//  All drawn on a 12×12 grid, scalable
+// ═══════════════════════════════════════
+const SVG_SUITS = {
+  // ♠ Spade: bulb top + stem
+  '♠': (w,h,color)=>`<svg width="${w}" height="${h}" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 1 C6 1 1 5 1 7.5 C1 9.5 2.5 10 4 9.5 C3.5 10.5 3 11 2 11 L10 11 C9 11 8.5 10.5 8 9.5 C9.5 10 11 9.5 11 7.5 C11 5 6 1 6 1Z" fill="${color}"/>
+  </svg>`,
+  // ♥ Heart: two bumps + point
+  '♥': (w,h,color)=>`<svg width="${w}" height="${h}" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+    <path d="M6 11 C6 11 1 7 1 4 C1 2 2.5 1 4 1 C5 1 6 2 6 2 C6 2 7 1 8 1 C9.5 1 11 2 11 4 C11 7 6 11 6 11Z" fill="${color}"/>
+  </svg>`,
+  // ♦ Diamond: rotated square
+  '♦': (w,h,color)=>`<svg width="${w}" height="${h}" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+    <polygon points="6,1 11,6 6,11 1,6" fill="${color}"/>
+  </svg>`,
+  // ♣ Club: three circles + stem
+  '♣': (w,h,color)=>`<svg width="${w}" height="${h}" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="6" cy="4.5" r="2.2" fill="${color}"/>
+    <circle cx="3.2" cy="7" r="2.2" fill="${color}"/>
+    <circle cx="8.8" cy="7" r="2.2" fill="${color}"/>
+    <rect x="4.8" y="7.5" width="2.4" height="2.5" fill="${color}"/>
+    <rect x="3.5" y="10" width="5" height="1" rx="0.5" fill="${color}"/>
+  </svg>`,
+};
+
+// Inject slot icons (replace placeholder text)
+const SLOT_COLORS='rgba(201,168,76,0.4)';
+document.getElementById('found-0').querySelector('.slot-icon').innerHTML=SVG_SUITS['♠'](20,20,SLOT_COLORS);
+document.getElementById('found-1').querySelector('.slot-icon').innerHTML=SVG_SUITS['♥'](20,20,SLOT_COLORS);
+document.getElementById('found-2').querySelector('.slot-icon').innerHTML=SVG_SUITS['♦'](20,20,SLOT_COLORS);
+document.getElementById('found-3').querySelector('.slot-icon').innerHTML=SVG_SUITS['♣'](20,20,SLOT_COLORS);
+
+// ═══════════════════════════════════════
+//  CARD SIZE — fixed pixels from board width
+// ═══════════════════════════════════════
+function computeCardSize(){
+  const boardW = document.getElementById('board').clientWidth - 16; // padding
+  const totalGaps = 6 * 6; // 6 gaps between 7 columns
+  const cw = Math.floor((boardW - totalGaps) / 7);
+  const ch = Math.floor(cw * (87/62));
+  const fanDown = Math.max(8, Math.floor(ch * 0.115));
+  const fanFace = Math.max(15, Math.floor(ch * 0.218));
+  document.documentElement.style.setProperty('--cw', cw+'px');
+  document.documentElement.style.setProperty('--ch', ch+'px');
+  document.documentElement.style.setProperty('--fan-down', fanDown+'px');
+  document.documentElement.style.setProperty('--fan-face', fanFace+'px');
+  return {cw, ch, fanDown, fanFace};
+}
+
+let CS = {}; // card size cache
+
+// ═══════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════
+const SUITS  = ['♠','♥','♦','♣'];
+const RANKS  = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const RED    = new Set(['♥','♦']);
+const RANK_V = Object.fromEntries(RANKS.map((r,i)=>[r,i+1]));
+
+// ═══════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════
+let stock=[], waste=[], foundations=[[],[],[],[]], tableau=[[],[],[],[],[],[],[]];
+let score=0, moves=0, startTime=0, timerID=null, gameWon=false, recycleCount=0;
+
+function makeCard(suit,rank){return {suit,rank,faceUp:false};}
+function makeDeck(){
+  const d=[];
+  for(const s of SUITS) for(const r of RANKS) d.push(makeCard(s,r));
+  return d;
+}
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){const j=0|Math.random()*(i+1);[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+// ═══════════════════════════════════════
+//  NEW GAME
+// ═══════════════════════════════════════
+function newGame(){
+  clearInterval(timerID);
+  score=0; moves=0; recycleCount=0; gameWon=false;
+  document.getElementById('win-overlay').classList.remove('show');
+  const d=shuffle(makeDeck());
+  foundations=[[],[],[],[]];
+  waste=[];
+  tableau=[[],[],[],[],[],[],[]];
+  for(let c=0;c<7;c++){
+    for(let r=0;r<=c;r++){
+      const card=d.pop();
+      card.faceUp=(r===c);
+      tableau[c].push(card);
+    }
+  }
+  stock=d;
+  CS=computeCardSize();
+  startTime=Date.now();
+  timerID=setInterval(updateTimer,1000);
+  render();
+  updateStats();
+}
+
+// ═══════════════════════════════════════
+//  BUILD CARD ELEMENT  (pixel-art SVG suits)
+// ═══════════════════════════════════════
+function cardEl(card){
+  const el=document.createElement('div');
+  el.className='card '+(card.faceUp?'face-up':'face-down');
+  el.dataset.suit=card.suit;
+  el.dataset.rank=card.rank;
+
+  if(!card.faceUp){
+    el.innerHTML='<div class="back-pattern"></div>';
+    return el;
+  }
+
+  const isRed=RED.has(card.suit);
+  el.classList.add(isRed?'red-card':'black-card');
+  const color=isRed?'#c0392b':'#111111';
+
+  // Small pip for corners (10px)
+  const pipSm=SVG_SUITS[card.suit](10,10,color);
+  // Center pip (22px)
+  const pipLg=SVG_SUITS[card.suit](22,22,color);
+
+  el.innerHTML=`
+    <div class="card-label tl">
+      <span class="rank-text">${card.rank}</span>
+      ${pipSm}
+    </div>
+    <div class="card-center-pip">${pipLg}</div>
+    <div class="card-label br">
+      <span class="rank-text">${card.rank}</span>
+      ${pipSm}
+    </div>`;
+  return el;
+}
+
+// ═══════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════
+function render(){
+  renderStock();
+  renderWaste();
+  renderFoundations();
+  renderTableau();
+}
+
+function clearCards(el){el.querySelectorAll('.card').forEach(c=>c.remove());}
+
+function renderStock(){
+  const el=document.getElementById('stock');
+  clearCards(el);
+  if(stock.length===0) return;
+  const ce=cardEl({faceUp:false});
+  ce.classList.add('stock-card');
+  ce.style.top='0'; ce.style.left='0'; ce.style.zIndex='1';
+  addPointerListeners(ce,'stock');
+  el.appendChild(ce);
+}
+
+function renderWaste(){
+  const el=document.getElementById('waste');
+  clearCards(el);
+  if(waste.length===0) return;
+  // Show top card only (ghost below for depth)
+  const show=Math.min(waste.length,2);
+  for(let i=waste.length-show;i<waste.length;i++){
+    const isTop=(i===waste.length-1);
+    const ce=cardEl(waste[i]);
+    ce.style.top='0';
+    ce.style.left=(i===waste.length-2)?'3px':'0';
+    ce.style.zIndex=String(i+1);
+    if(isTop) addPointerListeners(ce,'waste');
+    el.appendChild(ce);
+  }
+}
+
+function renderFoundations(){
+  for(let f=0;f<4;f++){
+    const el=document.getElementById('found-'+f);
+    clearCards(el);
+    const pile=foundations[f];
+    if(pile.length===0) continue;
+    const ce=cardEl(pile[pile.length-1]);
+    ce.style.top='0'; ce.style.left='0'; ce.style.zIndex='1';
+    addPointerListeners(ce,'found-'+f);
+    el.appendChild(ce);
+  }
+}
+
+function renderTableau(){
+  const fanDown=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--fan-down'));
+  const fanFace=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--fan-face'));
+  const ch=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--ch'));
+
+  for(let c=0;c<7;c++){
+    const el=document.getElementById('col-'+c);
+    clearCards(el);
+    const col=tableau[c];
+    let offset=0;
+    for(let i=0;i<col.length;i++){
+      const card=col[i];
+      const ce=cardEl(card);
+      ce.style.top=offset+'px';
+      ce.style.left='0';
+      ce.style.zIndex=String(i+1);
+      addPointerListeners(ce,'col-'+c+'-'+i);
+      el.appendChild(ce);
+      offset+=card.faceUp?fanFace:fanDown;
+    }
+    // Set column height so it contains its cards
+    const totalH=col.length===0?ch:offset+(ch - (col[col.length-1].faceUp?fanFace:fanDown));
+    el.style.height=Math.max(ch,totalH)+'px';
+  }
+}
+
+// ═══════════════════════════════════════
+//  POINTER / DRAG  (mobile-safe)
+// ═══════════════════════════════════════
+let drag={active:false};
+
+function addPointerListeners(el,source){
+  el.addEventListener('pointerdown',e=>onPointerDown(e,source),{passive:false});
+}
+
+function onPointerDown(e,source){
+  if(e.button!==undefined&&e.button!==0) return;
+  e.preventDefault(); e.stopPropagation();
+
+  if(source==='stock'){handleStockTap();return;}
+
+  const parts=source.split('-');
+  let srcType,srcColIdx,srcCardIdx;
+
+  if(source==='waste'){
+    if(waste.length===0) return;
+    srcType='waste';
+  } else if(parts[0]==='found'){
+    const fi=parseInt(parts[1]);
+    if(foundations[fi].length===0) return;
+    srcType='foundation'; srcColIdx=fi;
+  } else {
+    const c=parseInt(parts[1]),i=parseInt(parts[2]);
+    if(!tableau[c][i]||!tableau[c][i].faceUp) return;
+    srcType='tableau'; srcColIdx=c; srcCardIdx=i;
+  }
+
+  const rect=e.currentTarget.getBoundingClientRect();
+  const clientX=e.clientX;
+  const clientY=e.clientY;
+
+  let cardsToDrag=[];
+  if(srcType==='waste') cardsToDrag=[waste[waste.length-1]];
+  else if(srcType==='foundation') cardsToDrag=[foundations[srcColIdx][foundations[srcColIdx].length-1]];
+  else cardsToDrag=tableau[srcColIdx].slice(srcCardIdx);
+
+  const fanFace=parseInt(getComputedStyle(document.documentElement).getPropertyValue('--fan-face'));
+
+  const clones=[];
+  for(let i=0;i<cardsToDrag.length;i++){
+    const cl=cardEl(cardsToDrag[i]);
+    cl.classList.add('dragging');
+    cl.style.position='fixed';
+    cl.style.width=rect.width+'px';
+    cl.style.height=rect.height+'px';
+    cl.style.left=rect.left+'px';
+    cl.style.top=(rect.top+i*fanFace)+'px';
+    cl.style.zIndex=String(1000+i);
+    document.body.appendChild(cl);
+    clones.push(cl);
+  }
+
+  drag={
+    active:true, cards:cardsToDrag,
+    srcType, srcColIdx, srcCardIdx,
+    offX:clientX-rect.left, offY:clientY-rect.top,
+    clones, fanFace,
+    cardW:rect.width, cardH:rect.height
+  };
+
+  document.addEventListener('pointermove',onPointerMove,{passive:false});
+  document.addEventListener('pointerup',onPointerUp,{passive:false});
+  document.addEventListener('touchmove',noScroll,{passive:false});
+}
+
+function noScroll(e){e.preventDefault();}
+
+function onPointerMove(e){
+  if(!drag.active) return;
+  e.preventDefault();
+  const cx=e.clientX, cy=e.clientY;
+  drag.clones.forEach((cl,i)=>{
+    cl.style.left=(cx-drag.offX)+'px';
+    cl.style.top=(cy-drag.offY+i*drag.fanFace)+'px';
+  });
+}
+
+function onPointerUp(e){
+  document.removeEventListener('pointermove',onPointerMove);
+  document.removeEventListener('pointerup',onPointerUp);
+  document.removeEventListener('touchmove',noScroll);
+  if(!drag.active){drag.active=false;return;}
+
+  const cx=e.clientX, cy=e.clientY;
+  drag.clones.forEach(cl=>cl.style.display='none');
+  const target=hitTest(cx,cy);
+  drag.clones.forEach(cl=>cl.remove());
+  drag.active=false;
+
+  if(target) tryDrop(target);
+  else checkDoubleTap(cx,cy);
+}
+
+function hitTest(cx,cy){
+  for(let f=0;f<4;f++){
+    const r=document.getElementById('found-'+f).getBoundingClientRect();
+    if(cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom) return {type:'foundation',idx:f};
+  }
+  for(let c=0;c<7;c++){
+    const r=document.getElementById('col-'+c).getBoundingClientRect();
+    if(cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom) return {type:'tableau',idx:c};
+  }
+  return null;
+}
+
+function tryDrop(target){
+  const {srcType,srcColIdx,srcCardIdx,cards}=drag;
+  const topCard=cards[0];
+  if(target.type==='foundation'){
+    if(cards.length!==1) return;
+    if(canPlaceFoundation(topCard,target.idx)){
+      removeFromSource();
+      foundations[target.idx].push(topCard);
+      addScore(10); addMove();
+      flipTop(srcType,srcColIdx);
+      render(); checkWin();
+    }
+  } else if(target.type==='tableau'){
+    if(canPlaceTableau(topCard,target.idx)){
+      removeFromSource();
+      tableau[target.idx].push(...cards);
+      addScore(5); addMove();
+      flipTop(srcType,srcColIdx);
+      render(); checkWin();
+    }
+  }
+}
+
+function removeFromSource(){
+  const {srcType,srcColIdx,srcCardIdx,cards}=drag;
+  if(srcType==='waste') waste.splice(waste.length-1,1);
+  else if(srcType==='foundation') foundations[srcColIdx].splice(foundations[srcColIdx].length-1,1);
+  else tableau[srcColIdx].splice(srcCardIdx,cards.length);
+}
+
+function flipTop(srcType,srcColIdx){
+  if(srcType!=='tableau') return;
+  if(srcColIdx===undefined||srcColIdx===null) return;
+  const col=tableau[srcColIdx];
+  if(col.length>0&&!col[col.length-1].faceUp){
+    col[col.length-1].faceUp=true;
+    addScore(5);
+  }
+}
+
+// ═══════════════════════════════════════
+//  DOUBLE-TAP AUTO-MOVE
+// ═══════════════════════════════════════
+let lastTap={el:null,time:0};
+function checkDoubleTap(cx,cy){
+  const now=Date.now();
+  const el=document.elementFromPoint(cx,cy);
+  if(!el) return;
+  if(now-lastTap.time<350&&lastTap.el===el){
+    autoMove(el);
+    lastTap={el:null,time:0};
+  } else {
+    lastTap={el,time:now};
+  }
+}
+
+function autoMove(el){
+  let card,srcType,srcColIdx,srcCardIdx;
+  const pile=el.closest('.pile');
+  if(!pile) return;
+  const id=pile.id;
+  if(id==='waste'){
+    if(waste.length===0) return;
+    card=waste[waste.length-1]; srcType='waste';
+  } else if(id.startsWith('found')){
+    const f=parseInt(id.split('-')[1]);
+    if(foundations[f].length===0) return;
+    card=foundations[f][foundations[f].length-1]; srcType='foundation'; srcColIdx=f;
+  } else if(id.startsWith('col')){
+    const c=parseInt(id.split('-')[1]);
+    const col=tableau[c];
+    if(col.length===0) return;
+    card=col[col.length-1];
+    if(!card.faceUp) return;
+    srcType='tableau'; srcColIdx=c; srcCardIdx=col.length-1;
+  }
+  if(!card) return;
+  for(let f=0;f<4;f++){
+    if(canPlaceFoundation(card,f)){
+      drag={srcType,srcColIdx,srcCardIdx,cards:[card]};
+      removeFromSource();
+      foundations[f].push(card);
+      addScore(10); addMove();
+      flipTop(srcType,srcColIdx);
+      render(); checkWin(); return;
+    }
+  }
+  for(let c=0;c<7;c++){
+    if(srcType==='tableau'&&c===srcColIdx) continue;
+    if(canPlaceTableau(card,c)){
+      drag={srcType,srcColIdx,srcCardIdx,cards:[card]};
+      removeFromSource();
+      tableau[c].push(card);
+      addScore(5); addMove();
+      flipTop(srcType,srcColIdx);
+      render(); checkWin(); return;
+    }
+  }
+}
+
+// ═══════════════════════════════════════
+//  STOCK / WASTE
+// ═══════════════════════════════════════
+function handleStockTap(){
+  if(stock.length===0){
+    if(waste.length===0) return;
+    recycleCount++;
+    stock=[...waste].reverse();
+    waste=[];
+    if(recycleCount>1) score=Math.max(0,score-20);
+    addMove(); render(); updateStats(); return;
+  }
+  const card=stock.pop();
+  card.faceUp=true;
+  waste.push(card);
+  addScore(5); addMove(); render();
+}
+
+// ═══════════════════════════════════════
+//  RULES
+// ═══════════════════════════════════════
+function canPlaceFoundation(card,fi){
+  const pile=foundations[fi];
+  if(pile.length===0) return card.rank==='A';
+  const top=pile[pile.length-1];
+  return top.suit===card.suit&&RANK_V[card.rank]===RANK_V[top.rank]+1;
+}
+
+function canPlaceTableau(card,ci){
+  const col=tableau[ci];
+  if(col.length===0) return card.rank==='K';
+  const top=col[col.length-1];
+  if(!top.faceUp) return false;
+  return (RED.has(card.suit)!==RED.has(top.suit))&&RANK_V[card.rank]===RANK_V[top.rank]-1;
+}
+
+// ═══════════════════════════════════════
+//  SCORE / TIMER
+// ═══════════════════════════════════════
+function addScore(n){score=Math.max(0,score+n);updateStats();}
+function addMove(){moves++;updateStats();}
+function updateStats(){
+  document.getElementById('score-val').textContent=score;
+  document.getElementById('moves-val').textContent=moves;
+}
+function updateTimer(){
+  if(gameWon) return;
+  const s=Math.floor((Date.now()-startTime)/1000);
+  const m=Math.floor(s/60),ss=s%60;
+  document.getElementById('time-val').textContent=m+':'+(ss<10?'0':'')+ss;
+}
+
+// ═══════════════════════════════════════
+//  WIN
+// ═══════════════════════════════════════
+function checkWin(){
+  if(!foundations.every(f=>f.length===13)) return;
+  gameWon=true;
+  clearInterval(timerID);
+  const el=Math.floor((Date.now()-startTime)/1000);
+  const m=Math.floor(el/60),s=el%60;
+  document.getElementById('win-sub').textContent=
+    `Score: ${score} · Moves: ${moves} · Time: ${m}:${s<10?'0':''}${s}`;
+  document.getElementById('win-overlay').classList.add('show');
+  launchConfetti();
+}
+
+function launchConfetti(){
+  const colors=['#c9a84c','#e8c96a','#fff','#2ecc71','#e74c3c','#3498db'];
+  for(let i=0;i<80;i++){
+    setTimeout(()=>{
+      const p=document.createElement('div');
+      p.className='confetti-piece';
+      p.style.cssText=`left:${Math.random()*100}vw;top:-20px;background:${colors[0|Math.random()*colors.length]};animation-duration:${1.5+Math.random()*2}s;transform:rotate(${Math.random()*360}deg)`;
+      document.body.appendChild(p);
+      setTimeout(()=>p.remove(),4000);
+    },i*40);
+  }
+}
+
+// ═══════════════════════════════════════
+//  BUTTONS & TOUCH PREVENTION
+// ═══════════════════════════════════════
+document.getElementById('btn-new').addEventListener('click',newGame);
+document.getElementById('btn-play-again').addEventListener('click',newGame);
+document.addEventListener('touchstart',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ═══════════════════════════════════════
+//  RESIZE — recompute card size
+// ═══════════════════════════════════════
+window.addEventListener('resize',()=>{
+  CS=computeCardSize();
+  render();
+});
+
+// ═══════════════════════════════════════
+//  START
+// ═══════════════════════════════════════
+newGame();
+</script>
+</body>
+</html>
