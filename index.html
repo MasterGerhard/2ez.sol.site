@@ -8,7 +8,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#06060f">
   <meta name="description" content="2ez.sol — HTML games, play instantly in browser">
-  <title>2ez Games</title>
+  <title>2ez.sol.site</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Rubik:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
@@ -480,12 +480,12 @@
 
     <!-- Header -->
     <header class="header">
-      <h1 class="logo">2ez<span class="dot">.</span><span class="games-word">games</span></h1>
+      <h1 class="logo">2ez<span class="dot">.</span><span class="games-word">sol</span></h1>
       <div class="header-meta">
         <span class="header-sub">Play instantly in your browser</span>
         <span class="pill">
           <span class="pill-dot"></span>
-          <span id="game-count">13</span>&nbsp;live
+          <span id="game-count">13</span>&nbsp;games online
         </span>
       </div>
     </header>
@@ -515,18 +515,18 @@
     // ═══════════════════════════════════════════════
     // GAMES_DATA_START
     const GAMES = [
-      { folder: "americanDinner", title: "American Dinner", emoji: "🍔", g1: "#f59e0b", g2: "#dc2626" },
-      { folder: "brickbreaker", title: "Brick Breaker", emoji: "🧱", g1: "#0891b2", g2: "#2563eb" },
+      { folder: "americanDinner", title: "American Dinner Slots", emoji: "🎰", g1: "#eab308", g2: "#ea580c" },
+      { folder: "brickbreaker", title: "BRICKBREAKER", emoji: "🧱", g1: "#0891b2", g2: "#2563eb" },
       { folder: "candyDoom", title: "DOOM", emoji: "🍬", g1: "#e879f9", g2: "#7c3aed" },
       { folder: "coinToss", title: "Coin Toss", emoji: "🪙", g1: "#d97706", g2: "#92400e" },
-      { folder: "diskGolf", title: "Disk Golf", emoji: "⭐", g1: "#f59e0b", g2: "#b45309" },
+      { folder: "diskGolf", title: "Disk Golf", emoji: "🏆", g1: "#10b981", g2: "#065f46" },
       { folder: "doomMatch3", title: "Match 3 Ignition", emoji: "💎", g1: "#7c3aed", g2: "#be185d" },
-      { folder: "gemcrush", title: "Gem Crush", emoji: "💎", g1: "#7c3aed", g2: "#be185d" },
+      { folder: "gemcrush", title: "Gemcrush", emoji: "💎", g1: "#7c3aed", g2: "#be185d" },
       { folder: "gumballMachine", title: "Gumball Machine", emoji: "🎱", g1: "#1d4ed8", g2: "#0f172a" },
       { folder: "loveyBunnysFruitCatch", title: "Lovey Bunny's Fruit Catch!", emoji: "🐰", g1: "#f43f5e", g2: "#c026d3" },
-      { folder: "lucky7s", title: "Lucky 7s", emoji: "🎰", g1: "#eab308", g2: "#ea580c" },
+      { folder: "lucky7s", title: "Lucky 7s Slot Machine", emoji: "🎰", g1: "#eab308", g2: "#ea580c" },
       { folder: "solitare", title: "Solitaire", emoji: "🃏", g1: "#16a34a", g2: "#14532d" },
-      { folder: "sweetsAndTreats", title: "Sweets & Treats", emoji: "🍬", g1: "#e879f9", g2: "#7c3aed" },
+      { folder: "sweetsAndTreats", title: "Sweets & Treats Slots", emoji: "🎰", g1: "#eab308", g2: "#ea580c" },
     ];
     // GAMES_DATA_END
     // ═══════════════════════════════════════════════
@@ -536,7 +536,7 @@
 
     GAMES.forEach((game, i) => {
       const a = document.createElement('a');
-      a.href = `./${game.folder}/index.html`;
+      a.href = `./${game.folder}/${game.folder}.html`;
       a.className = 'app-item';
       a.style.animationDelay = `${i * 38}ms`;
       a.setAttribute('aria-label', game.title);
