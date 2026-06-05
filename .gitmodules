@@ -33,3 +33,6 @@
 	url = git@github.com:MasterGerhard/gemcrush.git
 [submodule]
 	branch = main
+[submodule "match3Ignition"]
+	path = match3Ignition
+	url = git@github.com:MasterGerhard/match3Ignition.git
