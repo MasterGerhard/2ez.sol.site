@@ -1,6 +1,3 @@
-[submodule "doomMatch3"]
-	path = doomMatch3
-	url = git@github.com:MasterGerhard/doomMatch3.git
 [submodule "candyDoom"]
 	path = candyDoom
 	url = git@github.com:MasterGerhard/candyDoom.git
