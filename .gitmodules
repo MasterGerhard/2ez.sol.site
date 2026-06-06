@@ -36,3 +36,6 @@
 [submodule "match3Ignition"]
 	path = match3Ignition
 	url = git@github.com:MasterGerhard/match3Ignition.git
+[submodule "templeIgnition"]
+	path = templeIgnition
+	url = git@github.com:MasterGerhard/templeIgnition.git
