@@ -103,7 +103,7 @@ var player={
 };
 
 var objects=[];    // {wz, lane, type, hit}
-//  type: 'coin' | 'hurdle' | 'overhead' | 'barrier'
+//  type: 'coin' | 'hurdle' | 'barrier'
 
 var particles=[];  // coin-collect sparkles
 
@@ -227,15 +227,11 @@ function spawnCheck(){
   } else if(r<0.44){
     /* coin arc (all 3) */
     for(var i=0;i<3;i++) objects.push({wz:base+1,lane:lanes[i],type:'coin',hit:false});
-  } else if(r<0.60){
+  } else if(r<0.64){
     /* hurdle — single lane */
     var hl=lanes[Math.floor(Math.random()*3)];
     objects.push({wz:base,lane:hl,type:'hurdle',hit:false});
-  } else if(r<0.75){
-    /* overhead — single lane */
-    var ol=lanes[Math.floor(Math.random()*3)];
-    objects.push({wz:base,lane:ol,type:'overhead',hit:false});
-  } else if(r<0.88){
+  } else if(r<0.82){
     /* barrier — two lanes blocked, one open */
     var open=lanes[Math.floor(Math.random()*3)];
     for(var i=0;i<3;i++){
@@ -303,9 +299,8 @@ function checkCollisions(){
     var pTop=player.sliding? jumpWU+0.72 : jumpWU+1.85;
 
     var h1,h2;
-    if(obj.type==='hurdle')  {h1=0;h2=0.95;}
-    else if(obj.type==='overhead'){h1=1.0;h2=3.0;}
-    else                     {h1=0;h2=3.0;} /* barrier */
+    if(obj.type==='hurdle'){h1=0;h2=0.95;}
+    else                   {h1=0;h2=2.8;} /* barrier */
 
     if(pBot<h2&&pTop>h1){
       lives--; player.inv=110; obj.hit=true; shake=18;
@@ -457,10 +452,10 @@ function renderWorld(){
 function renderCoin(obj,rz,lv){
   var p=P(obj.lane,1.05,rz);
   if(p.y<VPY-10||p.y>GY+20)return;
-  var cr=8*p.s*PPW;
+  var cr=Math.max(2.5, PPW*0.28*p.s);
   var spin=tick*0.08;
   cx.save();
-  cx.shadowBlur=14*p.s*5; cx.shadowColor=lv.coin;
+  cx.shadowBlur=12; cx.shadowColor=lv.coin;
   cx.fillStyle=lv.coin;
   cx.beginPath();
   cx.ellipse(p.x,p.y,Math.max(2,cr),Math.max(1,cr*0.42*Math.abs(Math.cos(spin))+cr*0.08),
@@ -472,13 +467,9 @@ function renderCoin(obj,rz,lv){
 /* ── obstacle 3-D box ── */
 function renderObstacle(obj,rz,lv){
   var hw=0.44, dep=0.55;
-  var y1w,y2w;
-  if(obj.type==='hurdle')  {y1w=0;y2w=0.95;}
-  else if(obj.type==='overhead'){y1w=1.0;y2w=2.8;}
-  else                    {y1w=0;y2w=2.8;} /* barrier */
+  var y1w=0, y2w=(obj.type==='hurdle')?0.95:2.8;
   var ln=obj.lane;
 
-  /* 8 corner points */
   var fbl=P(ln-hw,y1w,rz),   fbr=P(ln+hw,y1w,rz);
   var ftl=P(ln-hw,y2w,rz),   ftr=P(ln+hw,y2w,rz);
   var bbl=P(ln-hw,y1w,rz+dep),bbr=P(ln+hw,y1w,rz+dep);
@@ -487,99 +478,114 @@ function renderObstacle(obj,rz,lv){
   cx.save();
   cx.shadowBlur=12; cx.shadowColor=lv.obsG;
 
-  /* front face */
-  cx.fillStyle=lv.obs;
-  quad(fbl,fbr,ftr,ftl);
+  cx.fillStyle=lv.obs;           quad(fbl,fbr,ftr,ftl);       /* front */
+  cx.fillStyle=hexShade(lv.obs,28); quad(ftl,ftr,btr,btl);    /* top   */
+  cx.fillStyle=hexShade(lv.obs,-22);quad(fbr,bbr,btr,ftr);    /* right */
+  cx.fillStyle=hexShade(lv.obs,-18);quad(fbl,bbl,btl,ftl);    /* left  */
 
-  /* top face */
-  cx.fillStyle=hexShade(lv.obs,28);
-  quad(ftl,ftr,btr,btl);
-
-  /* right face */
-  cx.fillStyle=hexShade(lv.obs,-22);
-  quad(fbr,bbr,btr,ftr);
-
-  /* left face */
-  cx.fillStyle=hexShade(lv.obs,-18);
-  quad(fbl,bbl,btl,ftl);
-
-  /* glow edge */
-  cx.strokeStyle=lv.obsG;
-  cx.lineWidth=1.5;
+  cx.strokeStyle=lv.obsG; cx.lineWidth=1.5;
   cx.beginPath();
   cx.moveTo(ftl.x,ftl.y);cx.lineTo(ftr.x,ftr.y);
   cx.lineTo(fbr.x,fbr.y);cx.lineTo(fbl.x,fbl.y);cx.closePath();
   cx.stroke();
-
-  /* overhead warning stripe */
-  if(obj.type==='overhead'){
-    cx.fillStyle='rgba(255,200,0,0.18)';
-    for(var st=0;st<3;st++){
-      var sy1=ftl.y+(fbl.y-ftl.y)*st/3;
-      var sy2=ftl.y+(fbl.y-ftl.y)*(st+0.5)/3;
-      cx.fillRect(ftl.x,sy1,ftr.x-ftl.x,sy2-sy1);
-    }
-  }
-
   cx.restore();
 }
 
-/* ── player character ── */
+/* ── player — NFT pixel-art character
+   Traits: Skeleton body, Fancyboi suit, Smirk mouth,
+           Devil Horns, DWI Glasses  ── */
+var CHAR_PAL=[
+  'rgba(0,0,0,0)', // 0 transparent
+  '#111111',        // 1 black
+  '#F2EDE4',        // 2 off-white / skull bone
+  '#DD1111',        // 3 red (tie + horn front)
+  '#7a0000',        // 4 dark red (horn shadow)
+  '#EE44CC',        // 5 pink / smirk
+  '#888888',        // 6 gray (chin shadow)
+  '#2a2a2a',        // 7 dark-gray (glasses lens)
+  '#cccccc',        // 8 light gray
+];
+/* 12-wide × 20-tall pixel sprite */
+var CHAR_SPR=[
+  [0,0,4,3,0,0,0,0,3,4,0,0],  //  0 horn tips
+  [0,0,4,3,0,0,0,0,3,4,0,0],  //  1
+  [0,4,4,3,0,0,0,0,3,4,4,0],  //  2
+  [0,1,4,3,1,1,1,1,3,4,1,0],  //  3 horn bases merge into skull
+  [1,2,1,2,2,2,2,2,2,1,2,1],  //  4 skull top — checkered
+  [1,1,2,1,2,2,2,2,1,2,1,1],  //  5
+  [1,1,1,1,1,1,1,1,1,1,1,1],  //  6 DWI glasses ─ solid band
+  [1,7,7,1,7,7,7,7,1,7,7,1],  //  7 lens tint
+  [1,1,1,1,1,1,1,1,1,1,1,1],  //  8 glasses bottom bar
+  [1,5,5,5,5,5,5,5,5,5,5,1],  //  9 smirk (pink)
+  [1,5,2,2,2,2,2,2,2,2,5,1],  // 10 teeth row
+  [1,2,2,6,6,6,6,6,6,2,2,1],  // 11 chin with gray shadow
+  [0,1,2,2,2,2,2,2,2,2,1,0],  // 12 lower chin
+  [0,0,1,1,1,1,1,1,1,1,0,0],  // 13 neck
+  [0,1,1,2,2,3,3,2,2,1,1,0],  // 14 collar / tie knot
+  [1,1,1,1,3,3,3,3,1,1,1,1],  // 15 suit + tie
+  [1,1,1,3,3,3,3,3,3,1,1,1],  // 16
+  [1,1,1,3,3,3,3,3,3,1,1,1],  // 17
+  [1,1,1,1,1,1,1,1,1,1,1,1],  // 18 suit
+  [0,1,1,1,1,1,1,1,1,1,1,0],  // 19
+];
+var CHAR_W=12, CHAR_H=20, CHAR_S=4; /* 48 × 80 px on screen */
+
 function renderPlayer(lv){
   var x=player.lx;
   var footY=GY-player.jy;
-  var blink=player.inv>0&&tick%8<4;
-  if(blink)return;
+  if(player.inv>0&&tick%8<4)return; /* blink on hit */
 
   var isSlide=player.sliding;
-  var bodyH=isSlide?30:72;
-  var headR=11;
+  var S=CHAR_S;
 
-  /* shadow under feet */
   cx.save();
-  cx.globalAlpha=0.35+0.15*(1-player.jy/120);
+
+  /* ground shadow */
+  cx.globalAlpha=0.35*(0.5+0.5*(1-player.jy/130));
   cx.fillStyle='#000';
-  cx.beginPath();cx.ellipse(x,GY-2,18,5,0,0,Math.PI*2);cx.fill();
+  cx.beginPath();cx.ellipse(x,GY-2,20,5,0,0,Math.PI*2);cx.fill();
   cx.globalAlpha=1;
 
-  /* running swing */
-  var swing=Math.sin(player.rt*0.22)*(isSlide?0:22);
-  var bodyY=footY-bodyH;
-
-  /* legs */
-  cx.strokeStyle='#1a3c88'; cx.lineWidth=9; cx.lineCap='round';
+  /* sliding: squash vertically around footY */
   if(isSlide){
-    cx.beginPath();cx.moveTo(x-8,footY-18);cx.lineTo(x-28,footY+2);cx.stroke();
-    cx.beginPath();cx.moveTo(x-8,footY-18);cx.lineTo(x+6,footY-5);cx.stroke();
-  } else {
-    cx.beginPath();cx.moveTo(x-2,footY-32);cx.lineTo(x-10,footY-swing*0.3);cx.stroke();
-    cx.beginPath();cx.moveTo(x+2,footY-32);cx.lineTo(x+10,footY+swing*0.3-8);cx.stroke();
+    cx.translate(x,footY);
+    cx.scale(1,0.52);
+    cx.translate(-x,-footY);
   }
 
-  /* torso */
-  cx.fillStyle='#3355AA';
-  if(isSlide){
-    cx.fillRect(x-24,footY-38,42,24);
-  } else {
-    cx.fillRect(x-13,bodyY,26,bodyH-26);
-  }
+  var sw=Math.sin(player.rt*0.22)*(player.jy>5?0:1);
 
-  /* arms */
-  cx.strokeStyle='#FFCC88'; cx.lineWidth=7; cx.lineCap='round';
+  /* ── legs (drawn below sprite) ── */
+  cx.strokeStyle='#111'; cx.lineWidth=7; cx.lineCap='round';
   if(!isSlide){
-    cx.beginPath();cx.moveTo(x-4,bodyY+12);cx.lineTo(x-20,bodyY+30+swing*0.5);cx.stroke();
-    cx.beginPath();cx.moveTo(x+4,bodyY+12);cx.lineTo(x+20,bodyY+30-swing*0.5);cx.stroke();
+    cx.beginPath();cx.moveTo(x-4,footY-6);cx.lineTo(x-11,footY+sw*14);cx.stroke();
+    cx.beginPath();cx.moveTo(x+4,footY-6);cx.lineTo(x+11,footY-sw*14);cx.stroke();
   }
 
-  /* head */
-  var hx=isSlide?x-14:x;
-  var hy=isSlide?footY-48:bodyY-headR;
-  cx.fillStyle='#FFCC88';
-  cx.beginPath();cx.arc(hx,hy,headR,0,Math.PI*2);cx.fill();
+  /* ── sprite ── */
+  var x0=Math.round(x-(CHAR_W/2)*S);
+  var y0=Math.round(footY-CHAR_H*S);
+  for(var row=0;row<CHAR_H;row++){
+    for(var col=0;col<CHAR_W;col++){
+      var ci=CHAR_SPR[row][col];
+      if(!ci)continue;
+      cx.fillStyle=CHAR_PAL[ci];
+      cx.fillRect(x0+col*S, y0+row*S, S, S);
+    }
+  }
 
-  /* hat/bandana accent */
-  cx.fillStyle=lv.accent;
-  cx.fillRect(hx-headR,hy-headR*0.5,headR*2,6);
+  /* ── animated arms (suit sleeves, overlaid) ── */
+  if(!isSlide){
+    cx.strokeStyle='#111'; cx.lineWidth=6; cx.lineCap='round';
+    cx.beginPath();
+    cx.moveTo(x0,       y0+15*S);
+    cx.lineTo(x0-S*2.5, y0+18*S+sw*13);
+    cx.stroke();
+    cx.beginPath();
+    cx.moveTo(x0+12*S,  y0+15*S);
+    cx.lineTo(x0+14*S,  y0+18*S-sw*13);
+    cx.stroke();
+  }
 
   cx.restore();
 }
