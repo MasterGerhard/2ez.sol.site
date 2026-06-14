@@ -464,30 +464,116 @@ function renderCoin(obj,rz,lv){
   cx.restore();
 }
 
-/* ── obstacle 3-D box ── */
-function renderObstacle(obj,rz,lv){
-  var hw=0.44, dep=0.55;
-  var y1w=0, y2w=(obj.type==='hurdle')?0.95:2.8;
-  var ln=obj.lane;
+/* ══════════════════════════════════════════════════════
+   PIXEL-ART BADDIES
+   palette: 0=transparent  1=dark outline  2=body
+            3=accent/glow  4=eye-white     5=pupil
+            6=fang/tooth   7=mid-tone
+   ══════════════════════════════════════════════════════ */
 
-  var fbl=P(ln-hw,y1w,rz),   fbr=P(ln+hw,y1w,rz);
-  var ftl=P(ln-hw,y2w,rz),   ftr=P(ln+hw,y2w,rz);
-  var bbl=P(ln-hw,y1w,rz+dep),bbr=P(ln+hw,y1w,rz+dep);
-  var btl=P(ln-hw,y2w,rz+dep),btr=P(ln+hw,y2w,rz+dep);
+/* 8×10 — small IMP  (HURDLE — player jumps over) */
+var HURDLE_SPR=[
+  [0,0,3,0,0,3,0,0],  //  0  horn tips
+  [0,3,3,0,0,3,3,0],  //  1  horn shafts
+  [0,1,2,2,2,2,1,0],  //  2  head top
+  [1,1,4,2,2,4,1,1],  //  3  eye whites + dark brow
+  [1,2,5,3,3,5,2,1],  //  4  pupils + inner glow
+  [1,2,6,6,6,6,2,1],  //  5  bared teeth
+  [3,1,2,2,2,2,1,3],  //  6  arms out (accent tips)
+  [1,2,7,2,2,7,2,1],  //  7  body shading
+  [0,1,2,1,1,2,1,0],  //  8  hips / upper legs
+  [0,1,1,0,0,1,1,0],  //  9  feet
+];
+
+/* 8×14 — large DEMON  (BARRIER — player dodges around) */
+var BARRIER_SPR=[
+  [0,0,3,3,3,3,0,0],  //  0  wide horn tips
+  [0,3,3,1,1,3,3,0],  //  1  horn shafts
+  [0,1,3,1,1,3,1,0],  //  2  horn base
+  [0,1,2,2,2,2,1,0],  //  3  head top
+  [1,2,2,2,2,2,2,1],  //  4  head
+  [1,1,4,4,4,4,1,1],  //  5  eye whites + heavy brow
+  [1,1,5,2,2,5,1,1],  //  6  angry squinting pupils
+  [1,2,2,2,2,2,2,1],  //  7  face lower
+  [1,6,1,2,2,1,6,1],  //  8  fangs
+  [1,2,2,1,1,2,2,1],  //  9  chin
+  [3,2,2,2,2,2,2,3],  // 10  glowing shoulders
+  [2,2,3,2,2,3,2,2],  // 11  arms / chest pattern
+  [2,1,2,2,2,2,1,2],  // 12  body lower
+  [0,1,2,0,0,2,1,0],  // 13  legs
+];
+
+/* draw one baddie scaled to perspective depth */
+function renderObstacle(obj,rz,lv){
+  var isHurdle=obj.type==='hurdle';
+  var SPR=isHurdle?HURDLE_SPR:BARRIER_SPR;
+  var NR=SPR.length, NC=8;
+  var worldH=isHurdle?0.95:2.8;
+
+  var foot=P(obj.lane,0,rz);
+  if(foot.y<VPY-10||foot.y>GY+30)return;
+
+  /* one art-pixel = this many screen pixels */
+  var ps=F*worldH/(NR*rz);
+  if(ps<0.4)return;
+
+  /* walk-cycle: swap arm row on alternate ticks */
+  var wphase=Math.floor(tick*0.10+obj.wz*0.4)%2;
+
+  /* bob up/down */
+  var bob=Math.sin(tick*0.13+obj.wz*0.7)*ps*0.4;
+
+  var x0=Math.round(foot.x-(NC/2)*ps);
+  var y0=Math.round(foot.y-NR*ps+bob);
+
+  /* level-tinted palette */
+  var PAL=[
+    'rgba(0,0,0,0)',      // 0
+    hexShade(lv.obs,-44), // 1  dark outline
+    lv.obs,               // 2  body
+    lv.obsG,              // 3  accent glow
+    '#FFFFFF',            // 4  eye white
+    '#111111',            // 5  pupil
+    '#FFEEAA',            // 6  tooth / fang
+    hexShade(lv.obs,24),  // 7  mid-tone body
+  ];
 
   cx.save();
-  cx.shadowBlur=12; cx.shadowColor=lv.obsG;
 
-  cx.fillStyle=lv.obs;           quad(fbl,fbr,ftr,ftl);       /* front */
-  cx.fillStyle=hexShade(lv.obs,28); quad(ftl,ftr,btr,btl);    /* top   */
-  cx.fillStyle=hexShade(lv.obs,-22);quad(fbr,bbr,btr,ftr);    /* right */
-  cx.fillStyle=hexShade(lv.obs,-18);quad(fbl,bbl,btl,ftl);    /* left  */
-
-  cx.strokeStyle=lv.obsG; cx.lineWidth=1.5;
+  /* glow halo behind sprite */
+  var gx=foot.x, gy=y0+NR*ps*0.5;
+  var gr=cx.createRadialGradient(gx,gy,0,gx,gy,NC*ps*0.8);
+  gr.addColorStop(0,lv.obsG+'55');
+  gr.addColorStop(1,'rgba(0,0,0,0)');
+  cx.fillStyle=gr;
   cx.beginPath();
-  cx.moveTo(ftl.x,ftl.y);cx.lineTo(ftr.x,ftr.y);
-  cx.lineTo(fbr.x,fbr.y);cx.lineTo(fbl.x,fbl.y);cx.closePath();
-  cx.stroke();
+  cx.ellipse(gx,gy,NC*ps*0.8,NR*ps*0.55,0,0,Math.PI*2);
+  cx.fill();
+
+  /* pixel loop */
+  for(var row=0;row<NR;row++){
+    /* arm-cycle: flip accent cols on arm rows */
+    var isArmRow=(isHurdle&&row===6)||(!isHurdle&&row===11);
+    var sprRow=SPR[row];
+    for(var col=0;col<NC;col++){
+      var ci;
+      if(isArmRow&&wphase===1){
+        /* mirror the row for the walk cycle */
+        ci=sprRow[NC-1-col];
+      } else {
+        ci=sprRow[col];
+      }
+      if(!ci)continue;
+      cx.fillStyle=PAL[ci];
+      cx.fillRect(
+        Math.round(x0+col*ps),
+        Math.round(y0+row*ps),
+        Math.max(1,Math.ceil(ps)),
+        Math.max(1,Math.ceil(ps))
+      );
+    }
+  }
+
   cx.restore();
 }
 
